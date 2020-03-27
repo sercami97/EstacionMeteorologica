@@ -7,3 +7,5 @@ Ramas principales
   - Codigo arduino
   - Diseños3D
   - PCB
+
+sponsors: IRD, AGROmakers
