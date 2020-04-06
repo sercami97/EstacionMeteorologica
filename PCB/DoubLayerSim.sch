@@ -15,28 +15,6 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L pcb-rescue:DHT22-library DHT1
-U 1 1 5D9043F7
-P 4100 4150
-F 0 "DHT1" H 4100 4400 50  0000 C CNN
-F 1 "DHT22" H 4100 4350 50  0000 C CNN
-F 2 "pcb_ss:DHT22" H 4100 3850 50  0001 C CNN
-F 3 "" H 4100 3850 50  0001 C CNN
-	1    4100 4150
-	1    0    0    -1  
-$EndComp
-$Comp
-L pcb-rescue:MicroSdAdapter-library Micro_sd1
-U 1 1 5D9081CE
-P 7200 4200
-F 0 "Micro_sd1" H 7175 4575 50  0000 C CNN
-F 1 "MicroSdAdapter" H 7175 4484 50  0000 C CNN
-F 2 "pcb_ss:MicroSD_Adapter" H 6650 3100 50  0001 C CNN
-F 3 "" H 6650 3100 50  0001 C CNN
-	1    7200 4200
-	1    0    0    -1  
-$EndComp
-$Comp
 L Connector:Screw_Terminal_01x02 J2
 U 1 1 5D90B39A
 P 4950 1300
@@ -159,58 +137,8 @@ F 3 "" H 1600 2300 50  0001 C CNN
 $EndComp
 Wire Wire Line
 	1600 2600 1600 2550
-$Comp
-L power:GND #PWR09
-U 1 1 5D92BDA7
-P 3600 4250
-F 0 "#PWR09" H 3600 4000 50  0001 C CNN
-F 1 "GND" H 3605 4077 50  0000 C CNN
-F 2 "" H 3600 4250 50  0001 C CNN
-F 3 "" H 3600 4250 50  0001 C CNN
-	1    3600 4250
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:GND #PWR019
-U 1 1 5D92C2D9
-P 7600 4300
-F 0 "#PWR019" H 7600 4050 50  0001 C CNN
-F 1 "GND" H 7605 4127 50  0000 C CNN
-F 2 "" H 7600 4300 50  0001 C CNN
-F 3 "" H 7600 4300 50  0001 C CNN
-	1    7600 4300
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	3750 4250 3600 4250
-Wire Wire Line
-	3750 4050 3600 4050
-Wire Wire Line
-	7500 4300 7600 4300
 Wire Wire Line
 	6400 2750 6650 2750
-Wire Wire Line
-	6850 4050 6400 4050
-Wire Wire Line
-	6400 4050 6400 3750
-Wire Wire Line
-	6850 4150 6450 4150
-Wire Wire Line
-	6450 4150 6450 3450
-Wire Wire Line
-	6450 3450 6400 3450
-Wire Wire Line
-	6850 4250 6500 4250
-Wire Wire Line
-	6500 4250 6500 3650
-Wire Wire Line
-	6500 3650 6400 3650
-Wire Wire Line
-	6850 4350 6600 4350
-Wire Wire Line
-	6600 3550 6400 3550
-Wire Wire Line
-	6600 3550 6600 4350
 Wire Wire Line
 	4750 2100 4850 2100
 Wire Wire Line
@@ -309,8 +237,6 @@ F 3 "" H 4750 2000 50  0001 C CNN
 	1    4750 2000
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	7500 4100 7600 4100
 $Comp
 L power:+3V8 #PWR011
 U 1 1 5DB207D8
@@ -333,10 +259,6 @@ F 3 "" H 1050 2200 50  0001 C CNN
 	1    1050 2200
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	4450 4150 4650 4150
-Wire Wire Line
-	4650 3550 4650 4150
 Wire Wire Line
 	5350 1200 5350 1100
 Wire Wire Line
@@ -383,8 +305,6 @@ Wire Wire Line
 	5550 2200 5800 2200
 Wire Wire Line
 	5550 2100 5700 2100
-Wire Wire Line
-	4650 3550 5200 3550
 Wire Wire Line
 	5000 3050 5200 3050
 Wire Wire Line
@@ -456,8 +376,6 @@ Wire Wire Line
 	3250 2400 3650 2400
 Wire Wire Line
 	4250 2400 4250 3100
-Wire Wire Line
-	4250 3100 5200 3100
 Wire Wire Line
 	5200 3100 5200 3150
 Wire Wire Line
@@ -562,8 +480,6 @@ Wire Wire Line
 	3450 3100 3450 2850
 Wire Wire Line
 	3450 2850 3550 2850
-Wire Wire Line
-	3950 3300 5100 3300
 Wire Wire Line
 	5100 3300 5100 3250
 Wire Wire Line
@@ -698,23 +614,6 @@ Wire Wire Line
 	7050 3050 7050 2350
 Wire Wire Line
 	7050 2350 7000 2350
-$Comp
-L pcb-rescue:Moisture U1
-U 1 1 5E40ECC0
-P 7850 2650
-F 0 "U1" H 8128 2651 50  0000 L CNN
-F 1 "Moisture" H 8128 2560 50  0000 L CNN
-F 2 "pcb_ss:MOIS" H 7850 2650 50  0001 C CNN
-F 3 "" H 7850 2650 50  0001 C CNN
-	1    7850 2650
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	7700 2750 7250 2750
-Wire Wire Line
-	7250 2750 7250 3150
-Wire Wire Line
-	7250 3150 6400 3150
 Wire Wire Line
 	7000 2350 7000 2200
 $Comp
@@ -738,28 +637,6 @@ F 2 "" H 7700 2100 50  0001 C CNN
 F 3 "" H 7700 2100 50  0001 C CNN
 	1    7700 2100
 	-1   0    0    1   
-$EndComp
-$Comp
-L power:GND #PWR0113
-U 1 1 5E422347
-P 7700 2550
-F 0 "#PWR0113" H 7700 2300 50  0001 C CNN
-F 1 "GND" V 7705 2422 50  0000 R CNN
-F 2 "" H 7700 2550 50  0001 C CNN
-F 3 "" H 7700 2550 50  0001 C CNN
-	1    7700 2550
-	0    1    1    0   
-$EndComp
-$Comp
-L power:+5V #PWR0116
-U 1 1 5E424244
-P 7700 2850
-F 0 "#PWR0116" H 7700 2700 50  0001 C CNN
-F 1 "+5V" V 7715 2978 50  0000 L CNN
-F 2 "" H 7700 2850 50  0001 C CNN
-F 3 "" H 7700 2850 50  0001 C CNN
-	1    7700 2850
-	0    -1   -1   0   
 $EndComp
 $Comp
 L Device:R R7
@@ -814,17 +691,6 @@ F 3 "" H 5750 4850 50  0001 C CNN
 	-1   0    0    1   
 $EndComp
 $Comp
-L power:VCCQ #PWR0114
-U 1 1 5E46AECC
-P 7600 4100
-F 0 "#PWR0114" H 7600 3950 50  0001 C CNN
-F 1 "VCCQ" H 7617 4273 50  0000 C CNN
-F 2 "" H 7600 4100 50  0001 C CNN
-F 3 "" H 7600 4100 50  0001 C CNN
-	1    7600 4100
-	1    0    0    -1  
-$EndComp
-$Comp
 L power:VCCQ #PWR0104
 U 1 1 5E487CF9
 P 8750 2250
@@ -834,17 +700,6 @@ F 2 "" H 8750 2250 50  0001 C CNN
 F 3 "" H 8750 2250 50  0001 C CNN
 	1    8750 2250
 	0    1    1    0   
-$EndComp
-$Comp
-L power:+5V #PWR012
-U 1 1 5DB484B5
-P 3600 4050
-F 0 "#PWR012" H 3600 3900 50  0001 C CNN
-F 1 "+5V" H 3615 4223 50  0000 C CNN
-F 2 "" H 3600 4050 50  0001 C CNN
-F 3 "" H 3600 4050 50  0001 C CNN
-	1    3600 4050
-	1    0    0    -1  
 $EndComp
 $Comp
 L power:VCCQ #PWR0106
@@ -868,22 +723,88 @@ F 3 "" H 2400 2300 50  0001 C CNN
 	1    2400 2300
 	1    0    0    -1  
 $EndComp
-$Comp
-L pcb-rescue:Hole Hole1
-U 1 1 5E4B1FC3
-P 8150 2050
-F 0 "Hole1" V 8109 1992 50  0000 R CNN
-F 1 "Hole" V 8018 1992 50  0000 R CNN
-F 2 "MountingHole:MountingHole_2.5mm_Pad" H 8200 2050 50  0001 C CNN
-F 3 "" H 8200 2050 50  0001 C CNN
-	1    8150 2050
-	0    -1   -1   0   
-$EndComp
 Wire Wire Line
 	8150 2250 8750 2250
 Wire Wire Line
-	7700 2300 8150 2300
+	7700 2300 7850 2300
 Wire Wire Line
 	8150 2300 8150 2250
-Connection ~ 8150 2250
+Wire Wire Line
+	3950 3300 5100 3300
+Wire Wire Line
+	4250 3100 5200 3100
+$Comp
+L power:+5V #PWR012
+U 1 1 5DB484B5
+P 3600 4050
+F 0 "#PWR012" H 3600 3900 50  0001 C CNN
+F 1 "+5V" H 3615 4223 50  0000 C CNN
+F 2 "" H 3600 4050 50  0001 C CNN
+F 3 "" H 3600 4050 50  0001 C CNN
+	1    3600 4050
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4450 4150 4650 4150
+Wire Wire Line
+	3750 4050 3600 4050
+Wire Wire Line
+	3750 4250 3600 4250
+$Comp
+L power:GND #PWR09
+U 1 1 5D92BDA7
+P 3600 4250
+F 0 "#PWR09" H 3600 4000 50  0001 C CNN
+F 1 "GND" H 3605 4077 50  0000 C CNN
+F 2 "" H 3600 4250 50  0001 C CNN
+F 3 "" H 3600 4250 50  0001 C CNN
+	1    3600 4250
+	1    0    0    -1  
+$EndComp
+$Comp
+L pcb-rescue:DHT22-library DHT1
+U 1 1 5D9043F7
+P 4100 4150
+F 0 "DHT1" H 4100 4400 50  0000 C CNN
+F 1 "DHT22" H 4100 4350 50  0000 C CNN
+F 2 "pcb_ss:DHT22" H 4100 3850 50  0001 C CNN
+F 3 "" H 4100 3850 50  0001 C CNN
+	1    4100 4150
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4650 3550 4650 4150
+Wire Wire Line
+	4650 3550 5200 3550
+$Comp
+L pcb-rescue:Hole Hole1
+U 1 1 5E8A889E
+P 7500 4350
+F 0 "Hole1" H 7568 4411 50  0000 L CNN
+F 1 "Hole" H 7568 4320 50  0000 L CNN
+F 2 "MountingHole:MountingHole_2.2mm_M2_ISO7380_Pad" H 7550 4350 50  0001 C CNN
+F 3 "" H 7550 4350 50  0001 C CNN
+	1    7500 4350
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	3250 4900 3250 5050
+Wire Wire Line
+	3250 5050 2900 5050
+Wire Wire Line
+	2900 5050 2900 5850
+Wire Wire Line
+	2900 5850 7300 5850
+Wire Wire Line
+	7300 5850 7300 4350
+Wire Wire Line
+	7300 4350 7300 3150
+Wire Wire Line
+	7300 3150 7850 3150
+Wire Wire Line
+	7850 3150 7850 2300
+Connection ~ 7300 4350
+Connection ~ 7850 2300
+Wire Wire Line
+	7850 2300 8150 2300
 $EndSCHEMATC
