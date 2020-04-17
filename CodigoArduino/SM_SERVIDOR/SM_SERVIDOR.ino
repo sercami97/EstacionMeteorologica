@@ -5,7 +5,7 @@
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
 #include <DS3232RTC.h>  //Libreria RTC https://github.com/JChristensen/DS3232RTC
 
-
+//VERSION COMENTADA
 //Sleep Mode
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
