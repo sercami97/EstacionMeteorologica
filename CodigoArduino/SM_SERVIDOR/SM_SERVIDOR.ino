@@ -5,7 +5,6 @@
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
 #include <DS3232RTC.h>  //Libreria RTC https://github.com/JChristensen/DS3232RTC
 
-//VERSION COMENTADA
 //Sleep Mode
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
@@ -59,6 +58,13 @@ void setup() {
   _buffer.reserve(50); 
   msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
   mySerial.begin(9600);
+  delay(1000);
+  //Inicializar el modulo SIM800L en bajo consumo energetico
+  mySerial.println("AT\r");
+  runSerial();
+  delay(1000);
+  mySerial.println("AT+CSCLK=2\r");
+  runSerial();
   delay(1000);
 }
 
@@ -125,13 +131,23 @@ void loop() {
   while (ciclo < num_ciclos){
     Going_To_Sleep();
   }
-  Serial.println(msg);
-  messageServerPost();
-  delay(60000);
-  msg.remove(0,290);
-  msg.reserve(290);
-  delay(5000);
+  delay(10000); 
+  mySerial.println("AT\r");
+  runSerial();
+  delay(1000);
+  mySerial.println("AT+CSCLK=0\r"); //Comando AT usado para establecer el modulo SIM800L en funcionamiento normal  
+  runSerial();
+  messageServerPost(); //Posteo del mensaje en el servidor
+  msg.remove(0,290); //Se elimina el mensaje enviado
+  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
   ciclo = 0;
+  //Comandos AT necesarios para ordenar al SIM800L entrar en sleep mode
+  mySerial.println("AT\r");
+  runSerial();
+  delay(1000);
+  mySerial.println("AT+CSCLK=2\r");
+  runSerial();
+  delay(1000);
   inicializarSM();
 }
 
@@ -250,13 +266,14 @@ void dir(){
 
 void messageServerPost()
 {
+   delay(2000);
    initModule(); //Inicializacion del modulo
    //Comandos AT necesarios para postear el mensaje final en el servidor
    delay(5000);
-   mySerial.println(F("AT+HTTPINIT\r"));
+   mySerial.println(F("AT+HTTPINIT\r")); //Initializes the HTTP service. This is a proprietary Simcom AT command.This command should be sent first before starting HTTP service.
    runSerial();
    delay(500);
-   mySerial.println(F("AT+HTTPPARA=\"CID\",1\r"));
+   mySerial.println(F("AT+HTTPPARA=\"CID\",1\r"));//sets up HTTP parameters for the HTTP call. This is a proprietary AT command from SIMCOM.
    runSerial();
    delay(500);
    mySerial.println(F("AT+HTTPPARA=\"URL\",\"http://datos-env.iafjn3xg9q.us-east-1.elasticbeanstalk.com/datos/new/innovandes\"\r"));
@@ -271,13 +288,16 @@ void messageServerPost()
    mySerial.println("{\"name\": \"EM1\", \"description\": \""+ msg + "\"}");
    runSerial();
    delay(10000);
-   mySerial.println(F("AT+HTTPACTION=1\r"));
+   mySerial.println(F("AT+HTTPACTION=1\r")); //Used perform HTTP actions such HTTP GET or HTTP post. 
    runSerial();
    delay(3000);
-   mySerial.println(F("AT+HTTPREAD=0,100\r"));
+   mySerial.println(F("AT+HTTPREAD=0,100\r"));//Used to read the HTTP server response
    runSerial();
    delay(500);
-   mySerial.println(F("AT+HTTPTERM\r"));
+   mySerial.println(F("AT+HTTPTERM\r")); //Terminates the HTTP session
+   runSerial();
+   delay(3000);
+   mySerial.println(F("AT+CGATT=0\r")); //Terminates the HTTP session
    runSerial();
    delay(3000);
 }
