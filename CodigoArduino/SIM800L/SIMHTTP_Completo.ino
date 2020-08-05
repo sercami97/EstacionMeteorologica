@@ -93,7 +93,7 @@ void messageServerGet()
      runSerial();
      delay(500);
      
-     sim.println("AT+HTTPPARA=\"URL\",\"http://datos-env.iafjn3xg9q.us-east-1.elasticbeanstalk.com/datos/new/innovandes\"");
+     sim.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/Sensores/reporte_varios?id=2020080427&tramo="+datos+"\"");
      runSerial();
      delay(500);
      
