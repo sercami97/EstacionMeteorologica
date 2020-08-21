@@ -5,11 +5,6 @@
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
 #include <DS3232RTC.h>  //Libreria RTC https://github.com/JChristensen/DS3232RTC
 
-//Sleep Mode
-#define transistor_Pin 9   //Pin del transistor
-#define interruptPin 2 //Pin de interrupcion para despertar el arduino
-const int time_interval = 10; //Intervalo de tiempo para la toma de datos
-
 //DHT
 #define DHTPIN 7     //Pin donde está conectado el sensor DHT
 #define DHTTYPE DHT22   //Sensor DHT22
@@ -31,11 +26,14 @@ int lastHallState1 = 0;    //Estado previo del sensor efecto hall pluviografo (H
 float starttime;
 float new_endtime = 0;
 
-//Numero de tomas
+//Numero de tomas y Sleep Mode
+#define transistor_Pin 9   //Pin del transistor
+#define interruptPin 2 //Pin de interrupcion para despertar el arduino
+const int time_interval = 10; //Intervalo de tiempo para la toma de datos
 int ciclo = 0; 
 const int num_ciclos = 2; //Definir numero de tomas previas al envío (tomar 10 como valor máximo para evitar problemas de inestabilidad)
 int wake_up_min; //Variable de tiempo en el que se despierta el arduino
-
+bool date_done = false;
 //SIM
 SoftwareSerial mySerial(5, 4);//TX,RX
 String _buffer;
@@ -94,8 +92,8 @@ void inicializarSM() {
   RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE); 
 
-  //Descomentar para configurar la fecha y hora del RTC al cargar el programa, volver a comentar y volver a subir el programa tras ajustar fecha y hora.
-  /*
+  //Configuración de la fecha
+  if (date_done == false){
   tmElements_t tm;
   tm.Hour = 13;
   tm.Minute = 22;
@@ -104,7 +102,9 @@ void inicializarSM() {
   tm.Month = 8;
   tm.Year = 2020 - 1970;
   RTC.write(tm);   
-  */
+  }
+
+  date_done = true;
   
   time_t t = RTC.get(); //Obtener el tiempo actual del RTC
   wake_up_min = minute(t) + time_interval;
