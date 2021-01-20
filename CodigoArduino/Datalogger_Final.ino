@@ -5,17 +5,12 @@
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
 #include <DS3232RTC.h>  //Libreria RTC https://github.com/JChristensen/DS3232RTC
 
-//Sleep Mode
-#define transistor_Pin 9   //Pin del transistor
-#define interruptPin 2 //Pin de interrupcion para despertar el arduino
-const int time_interval = 30; //Intervalo de tiempo para la toma de datos
-
 //DHT
 #define DHTPIN 7     //Pin donde está conectado el sensor DHT
 #define DHTTYPE DHT22   //Sensor DHT22
 DHT dht(DHTPIN, DHTTYPE);
 float h;  //Variable de humedad relativa (0-100)
-float t; //Variable temeperatura grados centigrados
+float temp; //Variable temeperatura grados centigrados
 
 //HALL
 #define  hall_an 3  //Pin Anemometro (Vel. Viento)
@@ -31,14 +26,19 @@ int lastHallState1 = 0;    //Estado previo del sensor efecto hall pluviografo (H
 //Variables de tiempo para el sensado del anemometro y el pluviografo
 float starttime;
 float new_endtime = 0;
-//Numero de ciclos de sensado
-int ciclo = 0;
-const int num_ciclos = 10;
+int len;
+
+//Numero de tomas y Sleep Mode
+#define transistor_Pin 9   //Pin del transistor
+#define interruptPin 2 //Pin de interrupcion para despertar el arduino
+const int time_interval = 30; //Intervalo de tiempo para la toma de datos
+int ciclo = 0; 
+const int num_ciclos = 5; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
 int wake_up_min; //Variable de tiempo en el que se despierta el arduino
+bool date_done = false;
 
 //SIM
 SoftwareSerial mySerial(5, 4);//TX,RX
-String _buffer;
 
 // Infrarojo
 int WV;
@@ -49,16 +49,14 @@ int direccion; //Variable de direccion como entero, tomara valores (1-9)
 String finalString;
 String msg;
 
-
 void setup() {
-  delay(2000); 
+  delay(5000);
   Serial.begin(9600);
   inicializar(); //Inicializar pines sensores efecto hall y dht
-  inicializarSM(); //Inicializar Sleep Mode
-  _buffer.reserve(50); 
   msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
   mySerial.begin(9600);
   delay(1000);
+  
   //Inicializar el modulo SIM800L en bajo consumo energetico
   mySerial.println("AT\r");
   runSerial();
@@ -66,6 +64,9 @@ void setup() {
   mySerial.println("AT+CSCLK=2\r");
   runSerial();
   delay(1000);
+
+  //Inicializar Sleep Mode
+  inicializarSM(); 
 }
 
 void inicializar() {
@@ -78,29 +79,45 @@ void inicializar() {
 
 void inicializarSM() {
   //Declarar pines necesarios para el funcionamiento del sleep mode
-  pinMode(LED_BUILTIN, OUTPUT);  //LED arduino usado para conocer el estado del arduino
   pinMode(interruptPin, INPUT_PULLUP);
-  digitalWrite(LED_BUILTIN, HIGH);
   pinMode(transistor_Pin, OUTPUT);
   pinMode(transistor_Pin, HIGH);
 
+  //Eliminar cualquier alarma previa
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
+  RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
   RTC.alarm(ALARM_1);
+  RTC.alarm(ALARM_2);
   RTC.alarmInterrupt(ALARM_1, false);
-  RTC.squareWave(SQWAVE_NONE); 
+  RTC.alarmInterrupt(ALARM_2, false);
+  RTC.squareWave(SQWAVE_NONE);   
 
-  time_t t; //Crear variable temporal de tiempo
-  t = RTC.get(); //Obtener el tiempo actual del RTC
+  //Configuración de la fecha
+  if (date_done == false){
+  tmElements_t tm;
+  tm.Hour = 13;
+  tm.Minute = 22;
+  tm.Second = 00;
+  tm.Day = 5;
+  tm.Month = 8;
+  tm.Year = 2020 - 1970;
+  RTC.write(tm);   
+  }
+
+  date_done = true;
+  
+  time_t  t = RTC.get(); //Obtener el tiempo actual del RTC
   wake_up_min = minute(t) + time_interval;
+  
   //Condicional necesario para cambio de horas
   if (wake_up_min >= 60){
     wake_up_min = wake_up_min - 60;
   }
+  
   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, wake_up_min, 0, 0); //Poner alarma
   RTC.alarm(ALARM_1); //Eliminar bandera de la alarma
   RTC.squareWave(SQWAVE_NONE);
   RTC.alarmInterrupt(ALARM_1, true);  //Habilitar interrupcion de "ALARM_1"
-
 }
 
 void initModule(){
@@ -131,16 +148,17 @@ void loop() {
   while (ciclo < num_ciclos){
     Going_To_Sleep();
   }
+  
   delay(10000); 
   mySerial.println("AT\r");
   runSerial();
   delay(1000);
   mySerial.println("AT+CSCLK=0\r"); //Comando AT usado para establecer el modulo SIM800L en funcionamiento normal  
   runSerial();
-  messageServerPost(); //Posteo del mensaje en el servidor
+  delay(1000);
+  messageServerGet(); //Envío del mensaje en el servidor
   msg.remove(0,290); //Se elimina el mensaje enviado
   msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
-  ciclo = 0;
   //Comandos AT necesarios para ordenar al SIM800L entrar en sleep mode
   mySerial.println("AT\r");
   runSerial();
@@ -148,27 +166,21 @@ void loop() {
   mySerial.println("AT+CSCLK=2\r");
   runSerial();
   delay(1000);
+  ciclo = 0;
   inicializarSM();
 }
 
 void Going_To_Sleep() {
     digitalWrite(transistor_Pin, LOW);
     sleep_enable();//Habilitar sleep mode
-    Serial.println("Sleep Activado");
     attachInterrupt(0, wakeUp, LOW); //Adjuntar la interrupcion al pin D2
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);//Modo full sleep
-    digitalWrite(LED_BUILTIN, LOW); //Apagar LED arduino
-    time_t t;
-    t = RTC.get(); 
-    Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t))); 
     delay(1000); 
     sleep_cpu();//Activar sleep mode
-    Serial.println("Desperto");
-    digitalWrite(LED_BUILTIN, HIGH); //Encender LED arduino
     digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
     delay(5000);
     tomaDatos(); //Tomar datos de las variables de interes
-    t = RTC.get();
+    time_t t = RTC.get();
     wake_up_min = minute(t) + time_interval;
     if (wake_up_min >= 60){
       wake_up_min =  wake_up_min - 60;
@@ -190,10 +202,9 @@ void tomaDatos() {
   hall(); //Ejecutar funcion para el sensado con los efecto hall (pluviografo y anemometro)
   temp_hum(); //Ejecutar funcion para el sensado de temperatura y humedad
   dir(); //Ejecutar funcion para el sensado de la direccion
-  time_t tiempo;
-  tiempo = RTC.get(); 
+  time_t tiempo = RTC.get(); 
   //Guardar datos en un String
-  finalString = String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(h) + "," + String(t) + "," + String(hallCounter) + "," + String(hallCounter1) + "," + String(direccion)+ ";";
+  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1)+ ";";
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
   Serial.println(msg);
 }
@@ -227,45 +238,50 @@ void hall() {
 
 void temp_hum() {
   h = dht.readHumidity(); //Leer la humedad relativa
-  t = dht.readTemperature(); //Leer temperatura en grados Celsius
+  temp = 10*dht.readTemperature(); //Leer temperatura en grados Celsius
 }
 
 void dir(){
 
   //Dependiendo del valor analogo obtenido de la señal del sensor infrarrojo se establece la direccion
+  //Curva característica usada: d = 33.9 + -69.5v + 62.3v^2 + -25.4v^3 + 3.83v^4
+
     WV = analogRead(A3);
 
-    if (WV > 230 && WV < 245){
-      direccion = 1;
+    if ( WV >= 286 && WV < 328){
+      direccion = 1; // Norte
     }
-    else if (WV >= 245 && WV < 255){
-      direccion = 2;
+    else if (WV >= 246 && WV < 286){
+      direccion = 2; //NOR
     }
-    else if (WV >= 255 && WV < 270){
-      direccion = 3;
+    else if (WV >= 220 && WV < 246){
+      direccion = 3; //OR
     }
-    else if (WV >= 270 && WV < 285){
-      direccion = 4;
+    else if (WV >= 200 && WV < 220){
+      direccion = 4; //SOR
     }
-    else if (WV >= 285 && WV < 295){
-      direccion = 5;
+    else if (WV >= 184 && WV < 200){
+      direccion = 5; //S
     }  
-    else if (WV >= 295 && WV < 310){
-      direccion = 6;
+    else if (WV >= 173 && WV < 184){
+      direccion = 6; //SOC
     }
-    else if (WV >= 310 && WV < 343){
-      direccion = 7;
+    else if (WV >= 164 && WV < 173){
+      direccion = 7; //OC
     }
-    else if (WV >= 310 && WV < 413){
-      direccion = 8;
+    else if (WV >= 153 && WV < 164){
+      direccion = 8; //NOC
     }
     else{
-      direccion = 9;
+      direccion = 9; //NA
     }
 }
 
-void messageServerPost()
-{
+void messageServerGet(){
+
+   len = msg.length();
+   msg.remove(len-1);
+   Serial.println(msg);
    delay(2000);
    initModule(); //Inicializacion del modulo
    //Comandos AT necesarios para postear el mensaje final en el servidor
@@ -276,28 +292,16 @@ void messageServerPost()
    mySerial.println(F("AT+HTTPPARA=\"CID\",1\r"));//sets up HTTP parameters for the HTTP call. This is a proprietary AT command from SIMCOM.
    runSerial();
    delay(500);
-   mySerial.println(F("AT+HTTPPARA=\"URL\",\"http://datos-env.iafjn3xg9q.us-east-1.elasticbeanstalk.com/datos/new/innovandes\"\r"));
+   mySerial.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo="+msg+"\"\r");
    runSerial();
    delay(500);
-   mySerial.println(F("AT+HTTPPARA=\"CONTENT\",\"application/json\""));
-   runSerial();
-   delay(500);
-   mySerial.println(F("AT+HTTPDATA=1000,10000\r"));
-   runSerial();
-   delay(1000);
-   mySerial.println("{\"name\": \"EM1\", \"description\": \""+ msg + "\"}");
-   runSerial();
-   delay(10000);
-   mySerial.println(F("AT+HTTPACTION=1\r")); //Used perform HTTP actions such HTTP GET or HTTP post. 
+   mySerial.println(F("AT+HTTPACTION=0\r"));
    runSerial();
    delay(3000);
-   mySerial.println(F("AT+HTTPREAD=0,100\r"));//Used to read the HTTP server response
+   mySerial.println(F("AT+HTTPREAD=0,100\r"));
    runSerial();
    delay(500);
-   mySerial.println(F("AT+HTTPTERM\r")); //Terminates the HTTP session
-   runSerial();
-   delay(3000);
-   mySerial.println(F("AT+CGATT=0\r")); //Terminates the HTTP session
+   mySerial.println(F("AT+HTTPTERM\r"));
    runSerial();
    delay(3000);
 }
