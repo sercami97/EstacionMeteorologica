@@ -31,13 +31,11 @@ int len;
 //Numero de tomas y Sleep Mode
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
-const int time_interval = 1; //Intervalo de tiempo para la toma de datos
+const int time_interval = 30; //Intervalo de tiempo para la toma de datos
 int ciclo = 0; 
-const int num_ciclos = 50; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
+const int num_ciclos = 5; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
 int wake_up_min; //Variable de tiempo en el que se despierta el arduino
-bool date_done = true;
-
-int tiempo_hall = 15000;
+bool date_done = false;
 
 //SIM
 SoftwareSerial mySerial(5, 4);//TX,RX
@@ -54,7 +52,6 @@ String msg;
 void setup() {
   delay(5000);
   Serial.begin(9600);
-  Serial.println("Setuuuup");
   inicializar(); //Inicializar pines sensores efecto hall y dht
   msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
   mySerial.begin(9600);
@@ -66,15 +63,10 @@ void setup() {
   delay(1000);
   mySerial.println("AT+CSCLK=2\r");
   runSerial();
-  delay(3000);
-  initModule(); //Inicializacion del modulo
-  //Comandos AT necesarios para postear el mensaje final en el servidor
-  delay(4000);
+  delay(1000);
 
   //Inicializar Sleep Mode
   inicializarSM(); 
-  Serial.println("Setuuuup FIN");
-
 }
 
 void inicializar() {
@@ -103,11 +95,11 @@ void inicializarSM() {
   //Configuración de la fecha
   if (date_done == false){
   tmElements_t tm;
-  tm.Hour = 16;
-  tm.Minute = 26;
+  tm.Hour = 13;
+  tm.Minute = 22;
   tm.Second = 00;
-  tm.Day = 25;
-  tm.Month = 9;
+  tm.Day = 5;
+  tm.Month = 8;
   tm.Year = 2020 - 1970;
   RTC.write(tm);   
   }
@@ -154,13 +146,9 @@ void loop() {
   //Loop principal, se realizan n = "num_ciclos" toma de datos antes de hacer 
   //post en el servidor y borrar los datos del intervalo de tiempo en cuestion
   while (ciclo < num_ciclos){
-    //Going_To_Sleep();
-    digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
-    delay(2000);
-    tomaDatos(); //Tomar datos de las variables de interes
-
+    Going_To_Sleep();
   }
-  Serial.println("Envio Datos");
+  
   delay(10000); 
   mySerial.println("AT\r");
   runSerial();
@@ -183,7 +171,6 @@ void loop() {
 }
 
 void Going_To_Sleep() {
-    Serial.println("GOINGTOSLEEP");
     digitalWrite(transistor_Pin, LOW);
     sleep_enable();//Habilitar sleep mode
     attachInterrupt(0, wakeUp, LOW); //Adjuntar la interrupcion al pin D2
@@ -191,9 +178,7 @@ void Going_To_Sleep() {
     delay(1000); 
     sleep_cpu();//Activar sleep mode
     digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
-    Serial.println("GOINGTOSLEEP_AWAKE");
     delay(5000);
-    Serial.println("GOINGTOSLEEP_TOMA");
     tomaDatos(); //Tomar datos de las variables de interes
     time_t t = RTC.get();
     wake_up_min = minute(t) + time_interval;
@@ -212,30 +197,22 @@ void wakeUp() {
 }
 
 void tomaDatos() {
-  Serial.println("Comienza Datos");
   hallCounter = 0;
   hallCounter1 = 0;
   hall(); //Ejecutar funcion para el sensado con los efecto hall (pluviografo y anemometro)
   temp_hum(); //Ejecutar funcion para el sensado de temperatura y humedad
-  float timeTest = millis();
-  //while(millis()-timeTest < 5000){
-  while(true){
-    dir(); //Ejecutar funcion para el sensado de la direccion  
-    delay(1000);
-  }
+  dir(); //Ejecutar funcion para el sensado de la direccion
   time_t tiempo = RTC.get(); 
   //Guardar datos en un String
   finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1)+ ";";
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
   Serial.println(msg);
-  ciclo ++;
 }
 
 void hall() {
   starttime = millis();
-  Serial.print("Inicio Hall");
-  //Serial.println(starttime);
-  while ((new_endtime - starttime) < tiempo_hall) { //Realizar este loop durante 45 segundos
+  Serial.println(starttime);
+  while ((new_endtime - starttime) < 45000) { //Realizar este loop durante 45 segundos
     hallState = digitalRead(hall_an); //Estado hall anemometro
     hallState1 = digitalRead(hall_pluv1); //Estado hall pluviografo 1
     
@@ -244,14 +221,12 @@ void hall() {
     if (hallState != lastHallState) { 
       if (hallState == HIGH) {
         hallCounter ++;
-        Serial.println("HALL");
       }
       delay(50);
     }
     if (hallState1 != lastHallState1) {
       if (hallState1 == HIGH) {
         hallCounter1 ++;
-        Serial.println("HALL1");
       }
       delay(50);
     }
@@ -270,8 +245,6 @@ void dir(){
 
   //Dependiendo del valor analogo obtenido de la señal del sensor infrarrojo se establece la direccion
     WV = analogRead(A3);
-    Serial.println("DIR ->");
-    Serial.println(WV);
 
     if (WV > 230 && WV < 245){
       direccion = 1;
@@ -308,7 +281,9 @@ void messageServerGet(){
    msg.remove(len-1);
    Serial.println(msg);
    delay(2000);
-   
+   initModule(); //Inicializacion del modulo
+   //Comandos AT necesarios para postear el mensaje final en el servidor
+   delay(5000);
    mySerial.println(F("AT+HTTPINIT\r")); //Initializes the HTTP service. This is a proprietary Simcom AT command.This command should be sent first before starting HTTP service.
    runSerial();
    delay(500);
