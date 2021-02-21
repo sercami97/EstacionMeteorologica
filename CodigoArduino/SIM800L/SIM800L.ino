@@ -1,5 +1,5 @@
 #include <SoftwareSerial.h>
-SoftwareSerial sim(7, 6);//TX,RX
+SoftwareSerial sim(5,4);//TX,RX
 String _buffer;
 
 String datos = "Datoooooos";

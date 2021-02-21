@@ -5,16 +5,17 @@
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
 #include <DS3232RTC.h>  //Libreria RTC https://github.com/JChristensen/DS3232RTC
 
-//DHT
+//--------------------DHT--------------
 #define DHTPIN 7     //Pin donde está conectado el sensor DHT
 #define DHTTYPE DHT22   //Sensor DHT22
 DHT dht(DHTPIN, DHTTYPE);
 float h;  //Variable de humedad relativa (0-100)
 float temp; //Variable temeperatura grados centigrados
 
-//HALL
+//------------------HALL----------------
 #define  hall_an 3  //Pin Anemometro (Vel. Viento)
 #define  hall_pluv1 8 //Pin Anemometro (Pluviografo1)
+
 int hallCounter = 0;   //Contador tic tocs anemometro
 int hallState = 0;         //Estado actual del sensor efecto hall anemometro (HIGH,LOW)
 int lastHallState = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
@@ -31,13 +32,14 @@ int len;
 //Numero de tomas y Sleep Mode
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
-const int time_interval = 1; //Intervalo de tiempo para la toma de datos
+const int time_interval = 15; //Intervalo de tiempo para la toma de datos
 int ciclo = 0; 
-const int num_ciclos = 50; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
+const int num_ciclos = 1; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
 int wake_up_min; //Variable de tiempo en el que se despierta el arduino
+int wake_up_hour; //Variable de tiempo en el que se despierta el arduino
 bool date_done = true;
 
-int tiempo_hall = 15000;
+int tiempo_hall = 1500;
 
 //SIM
 SoftwareSerial mySerial(5, 4);//TX,RX
@@ -51,46 +53,60 @@ int direccion; //Variable de direccion como entero, tomara valores (1-9)
 String finalString;
 String msg;
 
+//Estado
+int state = 1;
+
+const int DORMIR = 2;
+const int DATOS = 1;
+const int ENVIO = 3;
+const int WAIT = 4;
+
+#define DTRpin 6
+
+volatile boolean wait = false;
+
+
 void setup() {
   delay(5000);
+  //Wire.begin();
   Serial.begin(9600);
   Serial.println("Setuuuup");
-  inicializar(); //Inicializar pines sensores efecto hall y dht
   msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
   mySerial.begin(9600);
   delay(1000);
   
-  //Inicializar el modulo SIM800L en bajo consumo energetico
+  initModuleSIM(); //Inicializacion del modulo SIM
+
   mySerial.println("AT\r");
   runSerial();
   delay(1000);
+  
   mySerial.println("AT+CSCLK=2\r");
   runSerial();
-  delay(3000);
-  initModule(); //Inicializacion del modulo
-  //Comandos AT necesarios para postear el mensaje final en el servidor
-  delay(4000);
-
-  //Inicializar Sleep Mode
-  inicializarSM(); 
+  delay(1000);
+  
+  inicializarPines(); //Inicializar pines sensores efecto hall, dht, interrupt, transistor
+  inicializarSM(); //Inicializar Sleep Mode
   Serial.println("Setuuuup FIN");
 
 }
 
-void inicializar() {
+void inicializarPines() {
   //Declarar pines de la señal de los sensores efecto hall como inputs
+  pinMode(interruptPin, INPUT_PULLUP);
+  pinMode(transistor_Pin, OUTPUT);
+
+  pinMode(DTRpin, OUTPUT);
+  digitalWrite(DTRpin, LOW);
+  
   pinMode(hall_an, INPUT); 
   pinMode(hall_pluv1, INPUT);
-  //Inicializar el DHT
-  dht.begin();
+  
+  dht.begin();//Inicializar el DHT
 }
 
 void inicializarSM() {
-  //Declarar pines necesarios para el funcionamiento del sleep mode
-  pinMode(interruptPin, INPUT_PULLUP);
-  pinMode(transistor_Pin, OUTPUT);
-  pinMode(transistor_Pin, HIGH);
-
+  
   //Eliminar cualquier alarma previa
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
   RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
@@ -113,122 +129,133 @@ void inicializarSM() {
   }
 
   date_done = true;
-  
-  time_t  t = RTC.get(); //Obtener el tiempo actual del RTC
-  wake_up_min = minute(t) + time_interval;
-  
-  //Condicional necesario para cambio de horas
-  if (wake_up_min >= 60){
-    wake_up_min = wake_up_min - 60;
-  }
-  
-  RTC.setAlarm(ALM1_MATCH_MINUTES , 0, wake_up_min, 0, 0); //Poner alarma
-  RTC.alarm(ALARM_1); //Eliminar bandera de la alarma
-  RTC.squareWave(SQWAVE_NONE);
-  RTC.alarmInterrupt(ALARM_1, true);  //Habilitar interrupcion de "ALARM_1"
 }
 
-void initModule(){
-  //Comandos AT necesarios para GSM/GPRS 
-  mySerial.println(F("AT+SAPBR=3,1,\"Contype\",\"GPRS\""));
-  runSerial();
-  delay(1500);
-  mySerial.println(F("AT+SAPBR=3,1,\"APN\",\"internet.comcel.com.co\""));
-  runSerial();
-  delay(100);
-  mySerial.println(F("AT+SAPBR=3,1,USER,\"comcel\""));
-  runSerial();
-  delay(100);
-  mySerial.println(F("AT+SAPBR=3,1,PWD,\"comcel\""));
-  runSerial();
-  delay(100);
-  mySerial.println(F("AT+SAPBR=1,1"));
-  runSerial();
-  delay(3500);
-  mySerial.println(F("AT+SAPBR=2,1"));
-  runSerial();
-  delay(2500);
-}
+
 
 void loop() {
-  //Loop principal, se realizan n = "num_ciclos" toma de datos antes de hacer 
-  //post en el servidor y borrar los datos del intervalo de tiempo en cuestion
-  while (ciclo < num_ciclos){
-    //Going_To_Sleep();
-    digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
-    delay(2000);
-    tomaDatos(); //Tomar datos de las variables de interes
 
-  }
-  Serial.println("Envio Datos");
-  delay(10000); 
-  mySerial.println("AT\r");
-  runSerial();
-  delay(1000);
-  mySerial.println("AT+CSCLK=0\r"); //Comando AT usado para establecer el modulo SIM800L en funcionamiento normal  
-  runSerial();
-  delay(1000);
-  messageServerGet(); //Envío del mensaje en el servidor
-  msg.remove(0,290); //Se elimina el mensaje enviado
-  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
-  //Comandos AT necesarios para ordenar al SIM800L entrar en sleep mode
-  mySerial.println("AT\r");
-  runSerial();
-  delay(1000);
-  mySerial.println("AT+CSCLK=2\r");
-  runSerial();
-  delay(1000);
-  ciclo = 0;
-  inicializarSM();
+  switch (state) {
+  case DATOS:
+    tomaDatos(); //Tomar datos de las variables de interes
+    break;
+  case ENVIO:
+    
+    messageServerGet(); //Envío del mensaje en el servidor
+    msg.remove(0,290); //Se elimina el mensaje enviado
+    msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje  
+    delay(1000);    
+    state = DATOS; 
+    break;
+  case DORMIR:
+    Going_To_Sleep();
+    break;
+  case WAIT:
+    if(wait == true){
+      state = DATOS;
+      wait = false;
+    }
+    break;
+    
+  default:
+    // statements
+    break;
+}
+  
 }
 
 void Going_To_Sleep() {
     Serial.println("GOINGTOSLEEP");
-    digitalWrite(transistor_Pin, LOW);
+
+    RTC.begin();
+    //Eliminar cualquier alarma previa
+    RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
+    RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
+    RTC.alarm(ALARM_1);
+    RTC.alarm(ALARM_2);
+    RTC.alarmInterrupt(ALARM_1, false);
+    RTC.alarmInterrupt(ALARM_2, false);
+    
+    RTC.squareWave(SQWAVE_NONE);
+    
+    time_t t = RTC.get();
+    Serial.println(String(hour(t))+ "," + String(minute(t)));
+    wake_up_min = minute(t) + time_interval;
+    wake_up_hour = hour(t);
+    if (wake_up_min >= 60){
+      wake_up_min =  wake_up_min - 60;
+      wake_up_hour += 1;
+    }
+    if(wake_up_hour == 24){
+      wake_up_hour = 0;
+    }
+    Serial.println(String(wake_up_hour) + " - " + String(wake_up_min));
+
+    RTC.setAlarm(ALM1_MATCH_HOURS , 0, wake_up_min, wake_up_hour, 0); //Poner nueva alarma
+    RTC.alarm(ALARM_1);
+    RTC.alarmInterrupt(ALARM_1, true);  //Habilitar interrupcion de "ALARM_1"
+    
+
+    pinMode(interruptPin, INPUT_PULLUP);
+    delay(100);
     sleep_enable();//Habilitar sleep mode
-    attachInterrupt(0, wakeUp, LOW); //Adjuntar la interrupcion al pin D2
+    attachInterrupt(digitalPinToInterrupt(interruptPin), wakeUp, LOW); //Adjuntar la interrupcion al pin D2
+
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);//Modo full sleep
     delay(1000); 
     sleep_cpu();//Activar sleep mode
-    digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
+    //Next Line after wakeup
     Serial.println("GOINGTOSLEEP_AWAKE");
-    delay(5000);
-    Serial.println("GOINGTOSLEEP_TOMA");
-    tomaDatos(); //Tomar datos de las variables de interes
-    time_t t = RTC.get();
-    wake_up_min = minute(t) + time_interval;
-    if (wake_up_min >= 60){
-      wake_up_min =  wake_up_min - 60;
-    }
-    RTC.setAlarm(ALM1_MATCH_MINUTES , 0, wake_up_min, 0, 0); //Poner nueva alarma
-    RTC.alarm(ALARM_1);
-    ciclo ++; //Sumar un ciclo de sensado
+    delay(1000);
+    time_t t1 = RTC.get();
+    Serial.println(String(hour(t1))+ "," + String(minute(t1)));
+    
+
+    state = DATOS;
 }
 
 void wakeUp() {
   Serial.println(F("Interrrupt Fired"));
   sleep_disable();//Deshabilitar sleep mode
   detachInterrupt(0); //Eliminar la interrupcion del pin 2;
+  wait = true;
 }
 
 void tomaDatos() {
+  digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
+  delay(100);
+  
   Serial.println("Comienza Datos");
   hallCounter = 0;
   hallCounter1 = 0;
   hall(); //Ejecutar funcion para el sensado con los efecto hall (pluviografo y anemometro)
   temp_hum(); //Ejecutar funcion para el sensado de temperatura y humedad
-  float timeTest = millis();
-  //while(millis()-timeTest < 5000){
-  while(true){
-    dir(); //Ejecutar funcion para el sensado de la direccion  
-    delay(1000);
-  }
+
+  dir(); //Ejecutar funcion para el sensado de la direccion  
+  delay(1000);
   time_t tiempo = RTC.get(); 
   //Guardar datos en un String
-  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1)+ ";";
+  float vol_panel = analogRead(A2)*(4.73)*(0.0049)*10;
+  float vol_bat = analogRead(A1)*(0.0049)*2*100;
+  Serial.println("Voltage Reading");
+  Serial.println(String(int(vol_panel)) + " - " + String(int(vol_bat)));
+
+  //finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
+  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(vol_bat))+ "," + String(int(vol_panel)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
+  
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
   Serial.println(msg);
-  ciclo ++;
+  
+  digitalWrite(transistor_Pin, LOW); //Desabilitar nodo 5V de alimentacion sensores
+  delay(100);
+
+  if(ciclo >= num_ciclos){
+    state = ENVIO;
+    ciclo = 0;
+  }else{
+    ciclo ++;
+    state = DORMIR;
+  }
 }
 
 void hall() {
@@ -262,8 +289,10 @@ void hall() {
 }
 
 void temp_hum() {
-  h = dht.readHumidity(); //Leer la humedad relativa
-  temp = 10*dht.readTemperature(); //Leer temperatura en grados Celsius
+  h = 10 * dht.readHumidity(); //Leer la humedad relativa
+  temp = 10 * dht.readTemperature(); //Leer temperatura en grados Celsius
+  Serial.println("Datos Ambiente");
+  Serial.println(String(h) + " - " + String(temp));
 }
 
 void dir(){
@@ -302,31 +331,105 @@ void dir(){
     }
 }
 
-void messageServerGet(){
+void messageServerGet()
+{
+    Serial.println("Envio Datos");
+    mySerial.println("AT\r");
+    runSerial();
+    delay(1000);
+    mySerial.println("AT+CSCLK=0\r"); //Comando AT usado para establecer el modulo SIM800L en funcionamiento normal  
+    runSerial();
+    delay(7000);
 
-   len = msg.length();
-   msg.remove(len-1);
-   Serial.println(msg);
-   delay(2000);
+    initModuleSIM();
+    
+    len = msg.length();
+    msg.remove(len-1);
+    Serial.println(msg);
+    delay(2000);
    
-   mySerial.println(F("AT+HTTPINIT\r")); //Initializes the HTTP service. This is a proprietary Simcom AT command.This command should be sent first before starting HTTP service.
-   runSerial();
-   delay(500);
-   mySerial.println(F("AT+HTTPPARA=\"CID\",1\r"));//sets up HTTP parameters for the HTTP call. This is a proprietary AT command from SIMCOM.
-   runSerial();
-   delay(500);
-   mySerial.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo="+msg+"\"\r");
-   runSerial();
-   delay(500);
-   mySerial.println(F("AT+HTTPACTION=0\r"));
-   runSerial();
-   delay(3000);
-   mySerial.println(F("AT+HTTPREAD=0,100\r"));
-   runSerial();
-   delay(500);
-   mySerial.println(F("AT+HTTPTERM\r"));
-   runSerial();
-   delay(3000);
+    mySerial.println("AT+HTTPINIT\r");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+HTTPPARA=\"CID\",1\r");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo="+msg + "\"");
+    runSerial();
+    delay(2000);
+    
+    mySerial.println("AT+HTTPACTION=0\r");
+    runSerial();
+    delay(4500);
+    
+    mySerial.println("AT+HTTPREAD=0,100");
+    runSerial();
+    delay(2500);
+    
+    mySerial.println("AT+HTTPTERM\r");
+    runSerial();
+    delay(3000);
+
+    mySerial.println("AT\r");
+    runSerial();
+    delay(1000);
+    mySerial.println("AT+CSCLK=2\r");
+    runSerial();
+    delay(1000);
+}
+
+void initModuleSIM(){
+  
+    mySerial.println("AT+HTTPTERM");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+CPIN?");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+CREG?");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+CGATT?");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+CSQ");
+    runSerial();
+    delay(500);
+    
+    mySerial.println("AT+SAPBR=3,1,\"Contype\",\"GPRS\"");
+    runSerial();
+    delay(1500);
+    
+    mySerial.println("AT+SAPBR=3,1,\"APN\",\"internet.comcel.com.co\"");
+    runSerial();
+    delay(100);
+    
+    mySerial.println("AT+SAPBR=3,1,USER,\"comcel\"");
+    runSerial();
+    delay(100);
+    
+    mySerial.println("AT+SAPBR=3,1,PWD,\"comcel\"");
+    runSerial();
+    delay(100);
+    
+    mySerial.println("AT+SAPBR=0,1");
+    runSerial();
+    delay(1000);
+
+    mySerial.println("AT+SAPBR=1,1");
+    runSerial();
+    delay(2000);
+    
+    mySerial.println("AT+SAPBR=2,1");
+    runSerial();
+    delay(2000);
+
 }
 
 void runSerial(){
