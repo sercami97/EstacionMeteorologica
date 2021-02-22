@@ -32,14 +32,14 @@ int len;
 //Numero de tomas y Sleep Mode
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
-const int time_interval = 15; //Intervalo de tiempo para la toma de datos
+const int time_interval = 30; //Intervalo de tiempo para la toma de datos
 int ciclo = 0; 
-const int num_ciclos = 1; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
+const int num_ciclos = 4; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
 int wake_up_min; //Variable de tiempo en el que se despierta el arduino
 int wake_up_hour; //Variable de tiempo en el que se despierta el arduino
 bool date_done = true;
 
-int tiempo_hall = 1500;
+int tiempo_hall = 30000;
 
 //SIM
 SoftwareSerial mySerial(5, 4);//TX,RX
@@ -358,7 +358,7 @@ void messageServerGet()
     
     mySerial.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo="+msg + "\"");
     runSerial();
-    delay(2000);
+    delay(3000);
     
     mySerial.println("AT+HTTPACTION=0\r");
     runSerial();
