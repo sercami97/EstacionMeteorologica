@@ -65,6 +65,10 @@ const int WAIT = 4;
 
 volatile boolean wait = false;
 
+const float MIN_VOLT_BAT = 3.3;
+const float MIN_VOLT_PAN = 8;
+
+String response_at = "";
 
 void setup() {
   delay(5000);
@@ -75,18 +79,17 @@ void setup() {
   mySerial.begin(9600);
   delay(1000);
   
-  initModuleSIM(); //Inicializacion del modulo SIM
-
-  mySerial.println("AT\r");
-  runSerial();
-  delay(1000);
-  
-  mySerial.println("AT+CSCLK=2\r");
-  runSerial();
-  delay(1000);
-  
   inicializarPines(); //Inicializar pines sensores efecto hall, dht, interrupt, transistor
   inicializarSM(); //Inicializar Sleep Mode
+  //initModuleSIM(); //Inicializacion del modulo SIM
+
+  tomaDatos();
+
+  messageServerGet(); //Envío del mensaje en el servidor
+  msg.remove(0,290); //Se elimina el mensaje enviado
+  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
+
+  
   Serial.println("Setuuuup FIN");
 
 }
@@ -116,19 +119,6 @@ void inicializarSM() {
   RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE);   
 
-  //Configuración de la fecha
-  if (date_done == false){
-  tmElements_t tm;
-  tm.Hour = 16;
-  tm.Minute = 26;
-  tm.Second = 00;
-  tm.Day = 25;
-  tm.Month = 9;
-  tm.Year = 2020 - 1970;
-  RTC.write(tm);   
-  }
-
-  date_done = true;
 }
 
 
@@ -138,6 +128,13 @@ void loop() {
   switch (state) {
   case DATOS:
     tomaDatos(); //Tomar datos de las variables de interes
+    if(ciclo >= num_ciclos){
+      state = ENVIO;
+      ciclo = 0;
+    }else{
+      ciclo ++;
+      state = DORMIR;
+    }
     break;
   case ENVIO:
     
@@ -149,12 +146,16 @@ void loop() {
     break;
   case DORMIR:
     Going_To_Sleep();
-    break;
-  case WAIT:
-    if(wait == true){
+    float vol_bat = analogRead(A1)*(0.0049)*2;
+    float vol_panel = analogRead(A2)*(4.73)*(0.0049);
+    if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
+      state = DORMIR;
+    }else{
       state = DATOS;
-      wait = false;
     }
+    break;
+  case WAIT: 
+    state = DORMIR;
     break;
     
   default:
@@ -211,14 +212,13 @@ void Going_To_Sleep() {
     Serial.println(String(hour(t1))+ "," + String(minute(t1)));
     
 
-    state = DATOS;
+    
 }
 
 void wakeUp() {
   Serial.println(F("Interrrupt Fired"));
   sleep_disable();//Deshabilitar sleep mode
   detachInterrupt(0); //Eliminar la interrupcion del pin 2;
-  wait = true;
 }
 
 void tomaDatos() {
@@ -235,27 +235,19 @@ void tomaDatos() {
   delay(1000);
   time_t tiempo = RTC.get(); 
   //Guardar datos en un String
-  float vol_panel = analogRead(A2)*(4.73)*(0.0049)*10;
+  float vol_panel = analogRead(A2)*(4.73)*(0.0049);
   float vol_bat = analogRead(A1)*(0.0049)*2*100;
   Serial.println("Voltage Reading");
   Serial.println(String(int(vol_panel)) + " - " + String(int(vol_bat)));
 
   //finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
-  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(vol_bat))+ "," + String(int(vol_panel)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
+  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(vol_bat)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) + "," + String(int(vol_panel)) +  ";";
   
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
   Serial.println(msg);
   
   digitalWrite(transistor_Pin, LOW); //Desabilitar nodo 5V de alimentacion sensores
   delay(100);
-
-  if(ciclo >= num_ciclos){
-    state = ENVIO;
-    ciclo = 0;
-  }else{
-    ciclo ++;
-    state = DORMIR;
-  }
 }
 
 void hall() {
@@ -302,33 +294,34 @@ void dir(){
     Serial.println("DIR ->");
     Serial.println(WV);
 
-    if (WV > 230 && WV < 245){
+    if (WV > 145 && WV < 165){
       direccion = 1;
     }
-    else if (WV >= 245 && WV < 255){
+    else if (WV >= 165 && WV < 175){
       direccion = 2;
     }
-    else if (WV >= 255 && WV < 270){
+    else if (WV >= 175 && WV < 195){
       direccion = 3;
     }
-    else if (WV >= 270 && WV < 285){
+    else if (WV >= 195 && WV < 225){
       direccion = 4;
     }
-    else if (WV >= 285 && WV < 295){
+    else if (WV >= 225 && WV < 260){
       direccion = 5;
     }  
-    else if (WV >= 295 && WV < 310){
+    else if (WV >= 260 && WV < 300){
       direccion = 6;
     }
-    else if (WV >= 310 && WV < 343){
+    else if (WV >= 300 && WV < 325){
       direccion = 7;
     }
-    else if (WV >= 310 && WV < 413){
+    else if (WV >= 325 && WV < 413){
       direccion = 8;
     }
     else{
       direccion = 9;
     }
+    Serial.println(direccion);
 }
 
 void messageServerGet()
@@ -350,23 +343,25 @@ void messageServerGet()
    
     mySerial.println("AT+HTTPINIT\r");
     runSerial();
-    delay(500);
+    delay(1500);
     
     mySerial.println("AT+HTTPPARA=\"CID\",1\r");
     runSerial();
-    delay(500);
-    
+    delay(4000);
+   
     mySerial.println("AT+HTTPPARA=\"URL\",\"http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo="+msg + "\"");
     runSerial();
-    delay(3000);
+    delay(10000);
+
     
     mySerial.println("AT+HTTPACTION=0\r");
     runSerial();
-    delay(4500);
+    delay(10000);
+
     
     mySerial.println("AT+HTTPREAD=0,100");
     runSerial();
-    delay(2500);
+    delay(10000);
     
     mySerial.println("AT+HTTPTERM\r");
     runSerial();
@@ -385,10 +380,19 @@ void initModuleSIM(){
     mySerial.println("AT+HTTPTERM");
     runSerial();
     delay(500);
-    
+
     mySerial.println("AT+CPIN?");
     runSerial();
     delay(500);
+
+//    mySerial.println("AT+CFUN=0");
+//    runSerial();
+//    delay(1500);
+//    
+//    mySerial.println("AT+CFUN=1");
+//    runSerial();
+//    delay(1500);
+
     
     mySerial.println("AT+CREG?");
     runSerial();
@@ -404,7 +408,7 @@ void initModuleSIM(){
     
     mySerial.println("AT+SAPBR=3,1,\"Contype\",\"GPRS\"");
     runSerial();
-    delay(1500);
+    delay(3500);
     
     mySerial.println("AT+SAPBR=3,1,\"APN\",\"internet.comcel.com.co\"");
     runSerial();
@@ -420,20 +424,37 @@ void initModuleSIM(){
     
     mySerial.println("AT+SAPBR=0,1");
     runSerial();
-    delay(1000);
+    delay(4000);
 
     mySerial.println("AT+SAPBR=1,1");
     runSerial();
-    delay(2000);
+    delay(8000);
     
     mySerial.println("AT+SAPBR=2,1");
     runSerial();
-    delay(2000);
+    delay(6000);
 
 }
 
+// Reading String
+#define BUFFERSIZE 200
+char buffer[BUFFERSIZE];
+char inChar;
+int index;
+
 void runSerial(){
+    char response[18] = {};
+    int i = 0;
     while (mySerial.available()){
-      Serial.write(mySerial.read());  
+      i++;
+      char c = mySerial.read();
+      Serial.write(c);
+      response[i] = c;
     }
+//    if(Serial.find("+CSQ: "))
+//    {
+//       Serial.readBytesUntil(",", response, 17);
+//       //Serial.println(response);
+//    }
+    
 }
