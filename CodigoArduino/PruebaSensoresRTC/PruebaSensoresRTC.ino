@@ -40,7 +40,7 @@ void setup() {
   digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
   delay(100);
 
-  date_done = true;
+  date_done = false;
   initTime();
 }
 
@@ -70,10 +70,10 @@ void initTime(){
   RTC.begin();
   if (date_done == false){
   tmElements_t tm;
-  tm.Hour = 11;
-  tm.Minute = 27;
+  tm.Hour = 9;
+  tm.Minute = 16;
   tm.Second = 00;
-  tm.Day = 23;
+  tm.Day = 28;
   tm.Month = 02;
   tm.Year = 2021 - 1970;
   RTC.write(tm); 
