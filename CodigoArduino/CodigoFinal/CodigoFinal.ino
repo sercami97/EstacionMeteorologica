@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include <Wire.h>
+//#include <Wire.h>
 #include <SoftwareSerial.h>
 #include "DHT.h" // Libreria DHT de Adafruit para DHT 11 o DHT 22 https://github.com/adafruit/DHT-sensor-library/archive/master.zip
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
@@ -42,8 +42,8 @@ int len;
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
 
-const uint8_t time_interval = 2; //Intervalo de tiempo para la toma de datos
-const uint8_t num_ciclos = 3; //Definir numero de tomas previas al envío (tomar 9 como valor máximo para evitar problemas de inestabilidad)
+const uint8_t time_interval = 30; //Intervalo de tiempo para la toma de datos
+const uint8_t num_ciclos = 6; //Definir numero de tomas previas al envío (tomar 6 como valor máximo para evitar problemas de inestabilidad)
 
 uint8_t ciclo = 0; 
 
@@ -83,6 +83,7 @@ const uint8_t DORMIR PROGMEM = 2;
 const uint8_t DATOS PROGMEM = 1;
 const uint8_t ENVIO PROGMEM = 3;
 const uint8_t RESET_SIM PROGMEM = 5;
+const uint8_t RESET_ARDU PROGMEM = 6;
 const uint8_t ASK_BAT PROGMEM = 7;
 
 const float MIN_VOLT_BAT = 3.4;
@@ -90,7 +91,7 @@ const float MIN_VOLT_PAN = 8;
 
 boolean wait = false;
 
-const uint8_t LIMIT_CONT = 10;
+const uint8_t LIMIT_CONT = 25;
 
 
 // ------------------ END ESTADOS -------------
@@ -107,8 +108,18 @@ boolean first_run = true;
 float vol_bat;
 float vol_panel; 
 
+uint8_t cont_rst_sim = 0;
+
+#define RST_ARD 11
+
 // --------------END SYSTEM VARIABLES -------------
-void setup() {  
+
+
+//Que se cuenten envios de rrores pero que siga los siguientes estados. Reset cuando hallan 3 mensajes que no se han enviado.
+void setup() {
+  digitalWrite(RST_ARD, HIGH);
+  delay(200);
+  pinMode(RST_ARD, OUTPUT);  
   // Initialize Serial Monitor for debugging
   Serial.begin(9600);
   while(!Serial);
@@ -122,7 +133,7 @@ void setup() {
   //sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 256, 256);
 
   // Equivalent line with the debug enabled on the Serial
-  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 290, 5, (Stream *)&Serial);
+  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 290, 20, (Stream *)&Serial);
   delay(10000);
 
   msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
@@ -131,29 +142,27 @@ void setup() {
   inicializarPines(); //Inicializar pines sensores efecto hall, dht, interrupt, transistor
   inicializarSM(); //Inicializar Sleep Mode
 
-  tomaDatos();
-  delay(1000);
-  tomaDatos();
-  eliminarUltimoDigito();
-
-  delay(15000);
+  delay(5000);
   
   updateVolt();
   if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
     Serial.println(F("LOW BATTERY UNABLE TO SEND SIM"));
     state = DORMIR;
   }else{
+    Serial.println(F("Init Data"));
+    tomaDatos();
+    delay(1000);
+    tomaDatos();
+    eliminarUltimoDigitoURL();
+    
     if(sendGet()){
       state = DATOS;
+      remove_msg();
     }else{
       state = RESET_SIM;
     }
   }
   
-
-  msg.remove(0,290); //Se elimina el mensaje enviado
-  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje  
-  delay(1000); 
 
 }
 void loop() {
@@ -161,16 +170,21 @@ void loop() {
   switch (state) {
   case DATOS:
     tomaDatos(); //Tomar datos de las variables de interes
+//    Serial.println(ciclo);
+//    Serial.println(num_ciclos);
     if(ciclo >= num_ciclos){
+//    Serial.println(F("IN pre envio"));
       state = ENVIO;
+      eliminarUltimoDigitoURL();
       ciclo = 0;
     }else{
       ciclo ++;
       state = DORMIR;
     }
+    last_state = DATOS;
     break;
   case ENVIO:
-    eliminarUltimoDigito();
+    Serial.println(F("Envio"));
     updateVolt();
     if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
       Serial.println(F("LOW BATTERY UNABLE TO SEND SIM"));
@@ -182,9 +196,8 @@ void loop() {
       state = RESET_SIM;
       break;
     }
-    msg.remove(0,290); //Se elimina el mensaje enviado
-    msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje  
-    delay(1000);    
+    remove_msg();
+    cont_rst_sim = 0;    
     state = DORMIR; 
     break;
   case DORMIR:
@@ -197,17 +210,30 @@ void loop() {
     delay(3000);
     state = ASK_BAT;
     last_state = RESET_SIM;
+    if(cont_rst_sim == 2 && cont_rst_sim == 1){
+      Serial.println(F("Begin DATA after reset"));
+      state = DATOS;
+      remove_msg();
+      //Serial.println(ciclo);
+    }
+    if(cont_rst_sim >= 3){
+      state = RESET_ARDU;
+      break;
+    }
+    cont_rst_sim++;
+    break;
+  case RESET_ARDU:
+    //Serial.println(F("Reset Arduino"));
+    cont_rst_sim = 0;
+    digitalWrite(RST_ARD,LOW);
     break;
   case ASK_BAT:
-    Serial.println(F("ASK BATTERY STATE"));
+    //Serial.println(F("ASK BATTERY STATE"));
     updateVolt();
     if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
-      Serial.println(F("LOW BATTERY"));
+      //Serial.println(F("LOW BATTERY"));
       state = DORMIR;
-      msg.remove(0,290); //Se elimina el mensaje enviado
-      msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje  
-      delay(1000);
-      ciclo = 0;  
+      remove_msg();
       break;
     }
     if(last_state == RESET_SIM){
@@ -223,7 +249,14 @@ void loop() {
   }
   //last_state = state;
 }
-
+void remove_msg(){
+  //Serial.println(F("REMOVE MSG"));
+  ciclo = 0;
+  delay(200);
+  msg.remove(0,290); //Se elimina el mensaje enviado
+  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
+  delay(1000);    
+}
 void inicializarPines() {
   //Declarar pines de la señal de los sensores efecto hall como inputs
   pinMode(interruptPin, INPUT_PULLUP);
@@ -266,8 +299,8 @@ void tomaDatos() {
   dir(); //Ejecutar funcion para el sensado de la direccion  
   delay(1000);
   time_t tiempo = RTC.get();
-  Serial.println(F("Time Datos"));
-  Serial.println((String(hour(tiempo))+ "," + String(minute(tiempo))));
+  //Serial.println(F("Time Datos"));
+  //Serial.println((String(hour(tiempo))+ "," + String(minute(tiempo))));
  
   //Guardar datos en un String
   updateVolt();
@@ -405,7 +438,7 @@ void Going_To_Sleep() {
       }
     
     if(incorrect_alarm){
-      Serial.println(F("Incorrect Alarm"));
+      //Serial.println(F("Incorrect Alarm"));
       wake_up_min = minute(t) + time_interval;
       wake_up_hour = hour(t);
       if (wake_up_min >= 60){
@@ -437,7 +470,7 @@ void Going_To_Sleep() {
       sleep_cpu();//Activar sleep mode
       
       //Next Line after wakeup
-      Serial.println(F("GOINGTOSLEEP_AWAKE"));
+      //Serial.println(F("GOINGTOSLEEP_AWAKE"));
       delay(1000);
       time_t t1 = RTC.get();
       //Serial.println(String(hour(t1))+ " - " + String(minute(t1)));
@@ -456,10 +489,14 @@ void wakeUp() {
   detachInterrupt(0); //Eliminar la interrupcion del pin 2;
 }
 
-void eliminarUltimoDigito(){
+void eliminarUltimoDigitoURL(){
+  //Serial.println(msg);
+  //Serial.println(F("BORRAR ULTIMO ADD URL"));
+  msg = URL + msg;
+  
   len = msg.length();
   msg.remove(len-1);
-  Serial.println(msg);
+  //Serial.println(msg);
   delay(2000);
 }
 bool sendGet() {
@@ -470,7 +507,7 @@ bool sendGet() {
     
   while(!enviado and contfail<5){
     contFailSetup = 0;
-    while(!setupModule() && contFailSetup <= 5){
+    while(!setupModule() && contFailSetup <= 3){
       contFailSetup++;
       Serial.println(F("Failed setup cycle"));
     }
@@ -537,7 +574,7 @@ bool sendGet() {
     connected = false;
     for(uint8_t i = 0; i < 5 && !connected; i++) {
       delay(5000);
-      connected = sim800l->initiateHTTPPARAINIT((URL+msg).c_str(),NULL);
+      connected = sim800l->initiateHTTPPARAINIT((msg).c_str(),NULL);
     }
   
     // Check if connected, if not reset the module and setup the config again
@@ -564,6 +601,7 @@ bool sendGet() {
 //        Serial.println(contfail);
       }
     }
+    delay(1000);
     // Close GPRS connectivity (5 trials)
     bool disconnected = sim800l->disconnectGPRS();
     for(uint8_t i = 0; i < 2 && !connected; i++) {
@@ -576,13 +614,27 @@ bool sendGet() {
     } else {
       Serial.println(F("GPRS still connected !"));
     }
-  
+    delay(5000);
     // Go into low power mode
     bool lowPowerMode = sim800l->setPowerMode(MINIMUM);
     if(lowPowerMode) {
       Serial.println(F("Module in low power mode"));
     } else {
       Serial.println(F("Failed to switch module to low power mode"));
+      lowPowerMode = sim800l->setPowerMode(MINIMUM);
+    }
+    if(lowPowerMode) {
+      Serial.println(F("Module in low power mode x2"));
+    } else {
+      Serial.println(F("Failed to switch module to low power mode x2"));
+    }
+    delay(5000);
+    // Go into sleep mode
+    lowPowerMode = sim800l->sleepModeCLK();
+    if(lowPowerMode) {
+      Serial.println(F("Module in sleep mode"));
+    } else {
+      Serial.println(F("Failed to switch module to sleep mode"));
     }
     contfail++;
 //    Serial.println(F("ContFail"));
@@ -597,13 +649,20 @@ bool setupModule() {
     // Wait until the module is ready to accept AT commands
   while(!sim800l->isReady() and maxContSig < LIMIT_CONT) {
     Serial.println(F("Problem to initialize AT command, retry in 1 sec"));
-    delay(1000);
+    delay(500);
     maxContSig++;
   }
   if(maxContSig>=LIMIT_CONT){
     Serial.println(F("No AT Response"));
     return false;
   }
+  delay(500);
+  if(sim800l->sleepWakeCLK()) {
+    Serial.println(F("Module awake mode"));
+  } else {
+    Serial.println(F("Failed to wake up module"));
+  }
+  
   Serial.println(F("Setup Complete!"));
   bool nornmalMode = sim800l->setPowerMode(NORMAL);
 //  if(nornmalMode) {
@@ -615,7 +674,7 @@ bool setupModule() {
   maxContSig = 0;
   uint8_t signal = sim800l->getSignal();
   while(signal <= 0 && maxContSig < LIMIT_CONT) {
-    delay(1000);
+    delay(500);
     signal = sim800l->getSignal();
     Serial.print(signal);
     maxContSig++;
