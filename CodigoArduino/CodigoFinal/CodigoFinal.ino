@@ -11,7 +11,7 @@
 #define SIM800_RST_PIN 10
 
 const char APN[] = "internet.comcel.com.co";
-const String URL = "http://eco.agromakers.org/api/v1/sensor/reporte_varios?id=2020080427&tramo=";
+const String URL = "http://eco.agromakers.org/api/r_v?id=2020080427&tramo=";
 
 SIM800L* sim800l;
 
@@ -27,7 +27,7 @@ uint8_t hallCounter1 = 0;   //Contador tic tocs ´pluviografo
 uint8_t hallState1 = 0;      //Estado actual del sensor efecto hall pluviografo (HIGH,LOW)
 uint8_t lastHallState1 = 0;    //Estado previo del sensor efecto hall pluviografo (HIGH,LOW)
 
-int tiempo_hall = 3000;
+int tiempo_hall = 60000;
 
 //------------------ END HALL --------------
 
@@ -42,8 +42,8 @@ int len;
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
 
-const uint8_t time_interval = 30; //Intervalo de tiempo para la toma de datos
-const uint8_t num_ciclos = 6; //Definir numero de tomas previas al envío (tomar 6 como valor máximo para evitar problemas de inestabilidad)
+const uint8_t time_interval = 10; //Intervalo de tiempo para la toma de datos
+const uint8_t num_ciclos = 5; //Definir numero de tomas previas al envío (tomar 6 como valor máximo para evitar problemas de inestabilidad)
 
 uint8_t ciclo = 0; 
 
@@ -69,8 +69,8 @@ uint8_t direccion; //Variable de direccion como entero, tomara valores (1-9)
 #define DHTPIN 7     //Pin donde está conectado el sensor DHT
 #define DHTTYPE DHT22   //Sensor DHT22
 DHT dht(DHTPIN, DHTTYPE);
-float h;  //Variable de humedad relativa (0-100)
-float temp; //Variable temeperatura grados centigrados
+uint8_t h;  //Variable de humedad relativa (0-100)
+uint16_t temp; //Variable temeperatura grados centigrados
 
 // -------------------- END DHT ---------------
 
@@ -78,7 +78,7 @@ float temp; //Variable temeperatura grados centigrados
 //Estado
 uint8_t state = 1;
 uint8_t last_state = 1;
-
+  
 const uint8_t DORMIR PROGMEM = 2;
 const uint8_t DATOS PROGMEM = 1;
 const uint8_t ENVIO PROGMEM = 3;
@@ -86,12 +86,12 @@ const uint8_t RESET_SIM PROGMEM = 5;
 const uint8_t RESET_ARDU PROGMEM = 6;
 const uint8_t ASK_BAT PROGMEM = 7;
 
-const float MIN_VOLT_BAT = 3.4;
-const float MIN_VOLT_PAN = 8;
+const uint16_t MIN_VOLT_BAT = 345;
+const uint8_t MIN_VOLT_PAN = 80;
 
 boolean wait = false;
 
-const uint8_t LIMIT_CONT = 25;
+const uint8_t LIMIT_CONT = 35;
 
 
 // ------------------ END ESTADOS -------------
@@ -105,12 +105,14 @@ String msg;
 boolean first_init = true;
 boolean first_run = true;
 
-float vol_bat;
-float vol_panel; 
+uint16_t vol_bat;
+uint8_t vol_panel; 
 
 uint8_t cont_rst_sim = 0;
 
 #define RST_ARD 11
+
+const uint16_t MAX_BYTES = 275;
 
 // --------------END SYSTEM VARIABLES -------------
 
@@ -130,13 +132,13 @@ void setup() {
   delay(1000);
    
   // Initialize SIM800L driver with an internal buffer of 200 bytes and a reception buffer of 512 bytes, debug disabled
-  //sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 256, 256);
+  //sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 290, 20);
 
   // Equivalent line with the debug enabled on the Serial
-  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 290, 20, (Stream *)&Serial);
+  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 300, 20, (Stream *)&Serial);
   delay(10000);
 
-  msg.reserve(290); //Reservar memoria en bytes para la cadena de caracteres de los datos
+  msg.reserve(MAX_BYTES); //Reservar memoria en bytes para la cadena de caracteres de los datos
   delay(1000);
 
   inicializarPines(); //Inicializar pines sensores efecto hall, dht, interrupt, transistor
@@ -207,10 +209,15 @@ void loop() {
   case RESET_SIM:
     Serial.println(F("Reset SIM"));
     sim800l->reset();
-    delay(3000);
+    delay(5000);
     state = ASK_BAT;
     last_state = RESET_SIM;
-    if(cont_rst_sim == 2 && cont_rst_sim == 1){
+    //cont_rst_sim = 0 -> Primer RESET SIM vuelve intentar envio
+    //cont_rst_sim = 1 -> Segundo RESET SIM vuelve intentar envio
+    //cont_rst_sim = 2 -> Tercer RESET SIM borra envio y vuelve a tomar datos.
+    //cont_rst_sim = 3 -> Reset Arduino
+
+    if(cont_rst_sim == 2){
       Serial.println(F("Begin DATA after reset"));
       state = DATOS;
       remove_msg();
@@ -253,8 +260,8 @@ void remove_msg(){
   //Serial.println(F("REMOVE MSG"));
   ciclo = 0;
   delay(200);
-  msg.remove(0,290); //Se elimina el mensaje enviado
-  msg.reserve(290); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
+  msg.remove(0,MAX_BYTES); //Se elimina el mensaje enviado
+  msg.reserve(MAX_BYTES); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
   delay(1000);    
 }
 void inicializarPines() {
@@ -282,8 +289,8 @@ void inicializarSM() {
   RTC.squareWave(SQWAVE_NONE);
 }
 void updateVolt(){
-  vol_bat = analogRead(A1)*(0.0049)*2;
-  vol_panel = analogRead(A2)*(4.73)*(0.0049);
+  vol_bat = uint16_t (analogRead(A1)*(0.0049)*2*100);
+  vol_panel = uint8_t (analogRead(A2)*(4.73)*(0.0049)*10);
   //Serial.println(String(vol_bat) + " - " + String(vol_panel));  
 }
 void tomaDatos() {
@@ -308,13 +315,16 @@ void tomaDatos() {
   //Serial.println(String(int(vol_panel)) + " - " + String(int(vol_bat)));
   
   //finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
-  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(vol_bat*10)) + "," + "1" + "," + String(direccion) + "," + "1" + "," + String(int(vol_panel/2)) +  ";";
+  
+  finalString.reserve(40); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
+  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(temp) + "," + String(h) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat)+";";
   
   if(first_run){
-    finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + "-1" + "," + String(int(vol_bat*10)) + "," + "1" + "," + String(direccion) + "," + "1" + "," + String(int(vol_panel)) +  ";";
+    finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + "-1" + "," + String(h) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat) + ";";
     first_run = false;
   }  
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
+  finalString.remove(0,40); //Se elimina el mensaje enviado
   Serial.println(msg);
   
   digitalWrite(transistor_Pin, LOW); //Desabilitar nodo 5V de alimentacion sensores
@@ -334,14 +344,14 @@ void hall() {
     if (hallState != lastHallState) { 
       if (hallState == HIGH) {
         hallCounter ++;
-        //Serial.println("HALL");
+        Serial.println("HALL1");
       }
       delay(50);
     }
     if (hallState1 != lastHallState1) {
       if (hallState1 == HIGH) {
         hallCounter1 ++;
-        //Serial.println("HALL1");
+        Serial.println("HALL2");
       }
       delay(50);
     }
@@ -352,8 +362,8 @@ void hall() {
 }
 
 void temp_hum() {
-  h = 10 * dht.readHumidity(); //Leer la humedad relativa
-  temp = 10 * dht.readTemperature(); //Leer temperatura en grados Celsius
+  h = uint8_t(dht.readHumidity()); //Leer la humedad relativa
+  temp = uint16_t(10 * dht.readTemperature()); //Leer temperatura en grados Celsius
   //Serial.println("Datos Ambiente");
   //Serial.println(String(h) + " - " + String(temp));
 }
@@ -506,27 +516,42 @@ bool sendGet() {
   uint8_t contFailSetup = 0;
     
   while(!enviado and contfail<5){
+    boolean var1;
     contFailSetup = 0;
-    while(!setupModule() && contFailSetup <= 3){
-      contFailSetup++;
-      Serial.println(F("Failed setup cycle"));
+    while(contFailSetup <= 2){
+      var1 = setupModule();
+      if(!var1){
+        contFailSetup++;
+        Serial.println(F("Failed setup cycle"));
+        Serial.println(var1);
+        Serial.println(F("Reset SIM"));
+//        sim800l->reset();
+//        delay(5000); 
+      }else{
+        break;
+      }
     }
-    if(contFailSetup>=2){
+//    if(var1 == false){
+//      Serial.println(F("Var False"));
+//    }else{
+//      Serial.println(F("Var TRUE"));
+//    }
+    if(contFailSetup>=4 and !var1){
       Serial.println(F("Unable to Setup Module SIM"));
-      return false;
+      //return false;
     }
-    // Close GPRS connectivity (5 trials)
-    bool disconnected2 = sim800l->disconnectGPRS();
-    for(uint8_t i = 0; i < 2 && !disconnected2; i++) {
-      delay(1000);
-      disconnected2 = sim800l->disconnectGPRS();
-    }
-    
-    if(disconnected2) {
-      Serial.println(F("GPRS disconnected !"));
-    } else {
-      Serial.println(F("GPRS still connected !"));
-    }
+//    // Close GPRS connectivity (5 trials)
+//    bool disconnected2 = sim800l->disconnectGPRS();
+//    for(uint8_t i = 0; i < 2 && !disconnected2; i++) {
+//      delay(1000);
+//      disconnected2 = sim800l->disconnectGPRS();
+//    }
+//    
+//    if(disconnected2) {
+//      Serial.println(F("GPRS disconnected !"));
+//    } else {
+//      Serial.println(F("GPRS still connected !"));
+//    }
     
     // Establish GPRS connectivity (5 trials)
     bool connected = false;
@@ -536,9 +561,7 @@ bool sendGet() {
     }
   
     // Check if connected, if not reset the module and setup the config again
-    if(connected) {
-      Serial.println(F("GPRS1 connected !"));
-    } else {
+    if(!connected) {
       Serial.println(F("GPRS1 not connected !"));
     }
       
@@ -564,9 +587,7 @@ bool sendGet() {
     }
   
     // Check if connected, if not reset the module and setup the config again
-    if(connected) {
-      Serial.println(F("HTTP SUCCESS !"));
-    } else {
+    if(!connected) {
       Serial.println(F("HTTP FAIL !"));
     }
     Serial.println(F("URL HTTP"));
@@ -585,18 +606,19 @@ bool sendGet() {
     }
 
     uint16_t contHttpError = 0;
-    while(enviado==false and contHttpError < 2){
+    while(enviado==false and contHttpError < 3){
       // Do HTTP GET communication with 10s for the timeout (read)
-      uint16_t rc = sim800l->doGet(uint16_t(15000));
+      uint16_t rc = sim800l->doGet(65000);
        if(rc == 200) {
         // Success, output the data received on the serial
-        Serial.println(F("HTTP GET successful"));
+        //Serial.println(F("HTTP GET successful"));
         enviado = true;
       } else {
         // Failed...
         Serial.print(F("HTTP GET error "));
         Serial.println(rc);
         contHttpError++;
+        delay(3000);
 //        Serial.println("ContFail");
 //        Serial.println(contfail);
       }
@@ -609,31 +631,25 @@ bool sendGet() {
       disconnected = sim800l->disconnectGPRS();
     }
     
-    if(disconnected) {
-      Serial.println(F("GPRS disconnected !"));
-    } else {
+    if(!disconnected) {
       Serial.println(F("GPRS still connected !"));
     }
     delay(5000);
     // Go into low power mode
     bool lowPowerMode = sim800l->setPowerMode(MINIMUM);
-    if(lowPowerMode) {
-      Serial.println(F("Module in low power mode"));
-    } else {
+    if(!lowPowerMode) {
       Serial.println(F("Failed to switch module to low power mode"));
+      delay(500);
       lowPowerMode = sim800l->setPowerMode(MINIMUM);
+      if(!lowPowerMode) {
+        Serial.println(F("Failed to switch module to low power mode x2"));
+      }
     }
-    if(lowPowerMode) {
-      Serial.println(F("Module in low power mode x2"));
-    } else {
-      Serial.println(F("Failed to switch module to low power mode x2"));
-    }
+    
     delay(5000);
     // Go into sleep mode
     lowPowerMode = sim800l->sleepModeCLK();
-    if(lowPowerMode) {
-      Serial.println(F("Module in sleep mode"));
-    } else {
+    if(!lowPowerMode) {
       Serial.println(F("Failed to switch module to sleep mode"));
     }
     contfail++;
@@ -645,10 +661,11 @@ bool sendGet() {
 }
 
 bool setupModule() {
+  bool resp = true;
   uint8_t maxContSig = 0;
     // Wait until the module is ready to accept AT commands
   while(!sim800l->isReady() and maxContSig < LIMIT_CONT) {
-    Serial.println(F("Problem to initialize AT command, retry in 1 sec"));
+    //Serial.println(F("Problem to initialize AT command, retry in 1 sec"));
     delay(500);
     maxContSig++;
   }
@@ -658,7 +675,7 @@ bool setupModule() {
   }
   delay(500);
   if(sim800l->sleepWakeCLK()) {
-    Serial.println(F("Module awake mode"));
+    //Serial.println(F("Module awake mode"));
   } else {
     Serial.println(F("Failed to wake up module"));
   }
@@ -681,7 +698,7 @@ bool setupModule() {
   }
   if(maxContSig>=LIMIT_CONT){
     Serial.println(F("No Signal"));
-    return false;
+    resp = false;
   }
 //  Serial.print(F("Signal OK (strenght: "));
 //  Serial.print(signal);
@@ -698,7 +715,7 @@ bool setupModule() {
   }
   if(maxContSig>=LIMIT_CONT){
     Serial.println(F("Network Registration Failed"));
-    return false;
+    //return false;
   }
 //  Serial.println(F("Network registration OK"));
 //  delay(1000);
@@ -711,5 +728,5 @@ bool setupModule() {
   }
   //Serial.println(F("GPRS config OK"));
 
-  return true;
+  return resp;
 }
