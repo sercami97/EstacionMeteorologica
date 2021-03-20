@@ -42,7 +42,7 @@ int len;
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
 
-const uint8_t time_interval = 10; //Intervalo de tiempo para la toma de datos
+const uint8_t time_interval = 30; //Intervalo de tiempo para la toma de datos
 const uint8_t num_ciclos = 5; //Definir numero de tomas previas al envío (tomar 6 como valor máximo para evitar problemas de inestabilidad)
 
 uint8_t ciclo = 0; 
@@ -112,7 +112,7 @@ uint8_t cont_rst_sim = 0;
 
 #define RST_ARD 11
 
-const uint16_t MAX_BYTES = 275;
+const uint16_t MAX_BYTES = 280;
 
 // --------------END SYSTEM VARIABLES -------------
 
@@ -135,7 +135,7 @@ void setup() {
   //sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 290, 20);
 
   // Equivalent line with the debug enabled on the Serial
-  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 300, 20, (Stream *)&Serial);
+  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 305, 20, (Stream *)&Serial);
   delay(10000);
 
   msg.reserve(MAX_BYTES); //Reservar memoria en bytes para la cadena de caracteres de los datos

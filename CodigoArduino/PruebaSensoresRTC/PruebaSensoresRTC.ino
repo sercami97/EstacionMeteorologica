@@ -32,6 +32,9 @@ float temp; //Variable temeperatura grados centigrados
 
 boolean date_done = false;
 
+float vol_bat = 0;
+float vol_panel = 0;
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -45,16 +48,17 @@ void setup() {
 }
 
 void loop() {
-//  temp_hum();
-//  delay(500);
-//  dir();
-//  delay(1000);
-//  dir();
-//  delay(2000);
-//  dir();
-//  delay(2000);
-//  dir();
-//  delay(2000);
+  updateVolt();
+  delay(1000);
+  
+  temp_hum();
+  delay(500);
+  
+  dir();
+  delay(1000);
+  dir();
+  delay(1000);
+
   hallCounter = 0;
   hallCounter1 = 0;
   hall();
@@ -160,4 +164,10 @@ void temp_hum() {
   temp = dht.readTemperature(); //Leer temperatura en grados Celsius
   Serial.println("Datos Ambiente");
   Serial.println(String(h) + " - " + String(temp));
+}
+
+void updateVolt(){
+  vol_bat = float (analogRead(A1)*(0.0049)*2);
+  vol_panel = float (analogRead(A2)*(4.73)*(0.0049));
+  Serial.println(String(vol_bat) + " - " + String(vol_panel));  
 }
