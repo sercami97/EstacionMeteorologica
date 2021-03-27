@@ -1,5 +1,4 @@
 #include "Arduino.h"
-//#include <Wire.h>
 #include <SoftwareSerial.h>
 #include "DHT.h" // Libreria DHT de Adafruit para DHT 11 o DHT 22 https://github.com/adafruit/DHT-sensor-library/archive/master.zip
 #include <avr/sleep.h> //Libreria avr que contiene los metodos que controlan el modo sleep
@@ -22,10 +21,15 @@ SIM800L* sim800l;
 
 uint8_t hallCounter = 0;   //Contador tic tocs anemometro
 uint8_t hallState = 0;         //Estado actual del sensor efecto hall anemometro (HIGH,LOW)
-uint8_t lastHallState = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+uint8_t lastHall = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+uint8_t lLastHall = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+uint8_t lLLastHall = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+
 uint8_t hallCounter1 = 0;   //Contador tic tocs ´pluviografo
 uint8_t hallState1 = 0;      //Estado actual del sensor efecto hall pluviografo (HIGH,LOW)
-uint8_t lastHallState1 = 0;    //Estado previo del sensor efecto hall pluviografo (HIGH,LOW)
+uint8_t lastHall1 = 0;    //Estado previo del sensor efecto hall pluviografo (HIGH,LOW)
+uint8_t lLastHall1 = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+uint8_t lLLastHall1 = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
 
 int tiempo_hall = 60000;
 
@@ -34,8 +38,8 @@ int tiempo_hall = 60000;
 //---------------- SLEEP MODE & RTC ---------------
 //Variables 
 //Variables de tiempo para el sensado del anemometro y el pluviografo
-float starttime;
-float new_endtime = 0;
+unsigned long starttime;
+unsigned long new_endtime = 0;
 int len;
 
 //Numero de tomas y Sleep Mode
@@ -61,7 +65,7 @@ bool date_done = true;
 
 // -------------------- IR -----------------
 int WV;
-uint8_t direccion; //Variable de direccion como entero, tomara valores (1-9)
+//uint8_t direccion; //Variable de direccion como entero, tomara valores (1-9)
 
 // -------------------- END IR -----------------
 
@@ -303,7 +307,22 @@ void tomaDatos() {
   hall(); //Ejecutar funcion para el sensado con los efecto hall (pluviografo y anemometro)
   temp_hum(); //Ejecutar funcion para el sensado de temperatura y humedad
 
-  dir(); //Ejecutar funcion para el sensado de la direccion  
+  uint8_t contDifDir = 0;
+  uint8_t dirF=0;
+  boolean out = true;
+  while(out and contDifDir<3){
+    uint8_t dir1 = dir();
+    delay(1000);
+    uint8_t dir2 = dir();
+    delay(1000);
+    if(dir1 == dir2){
+      dirF = dir1;
+      out = false;;  
+    }else{
+      contDifDir++;
+      dirF = dir1;
+    }
+  }  
   delay(1000);
   time_t tiempo = RTC.get();
   //Serial.println(F("Time Datos"));
@@ -317,10 +336,10 @@ void tomaDatos() {
   //finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
   
   finalString.reserve(40); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
-  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(temp) + "," + String(h) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat)+";";
+  finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(temp) + "," + String(h) + "," + String(hallCounter) + "," + String(dirF) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat)+";";
   
   if(first_run){
-    finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + "-1" + "," + String(h) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat) + ";";
+    finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + "-1" + "," + String(h) + "," + String(hallCounter) + "," + String(dirF) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat) + ";";
     first_run = false;
   }  
   msg = msg + finalString; //Guardar la toma de diferentes ciclos en una variable que sera enviada al servidor
@@ -332,33 +351,53 @@ void tomaDatos() {
 }
 
 void hall() {
+  hallCounter = 0;
+  hallCounter1 = 0;
   starttime = millis();
-  //Serial.println(F("Inicio Hall"));
-  //Serial.println(starttime);
-  while ((new_endtime - starttime) < tiempo_hall) { //Realizar este loop durante 45 segundos
+  new_endtime = millis();
+  Serial.println(F("Init Hall"));
+  
+  while ((new_endtime - starttime) < 60000) { //Realizar este loop durante 45 segundos
+    Serial.println((new_endtime - starttime));
+//    Serial.println(F("Inside"));
     hallState = digitalRead(hall_an); //Estado hall anemometro
     hallState1 = digitalRead(hall_pluv1); //Estado hall pluviografo 1
-    
+//    if (hallState == HIGH) {
+//      Serial.println("HIGH");
+//    }else{
+//      Serial.println("LOW");
+//    }
     //Si hay un cambio en el estado HIGH ->LOW o LOW->HIGH en la señal de salida de los efecto hall
     //se aumenta en 1 el numero de tic tocs
-    if (hallState != lastHallState) { 
-      if (hallState == HIGH) {
-        hallCounter ++;
-        Serial.println("HALL1");
+    if (lLLastHall != lLastHall) { 
+      if (hallState == HIGH and lastHall == HIGH and lLastHall == HIGH) {
+        hallCounter++;
+        Serial.println(hallCounter);
       }
-      delay(50);
+      delay(10);
     }
-    if (hallState1 != lastHallState1) {
-      if (hallState1 == HIGH) {
-        hallCounter1 ++;
-        Serial.println("HALL2");
+    if (lLLastHall1 != lLastHall1) {
+      if (hallState1 == HIGH and lastHall1 == HIGH and lLastHall1 == HIGH) {
+        hallCounter1++;
+        Serial.println(hallCounter1);
       }
-      delay(50);
+      delay(10);
     }
-    lastHallState = hallState;
-    lastHallState1 = hallState1;
-    new_endtime = millis();
+    
+    lLLastHall = lLastHall;
+    lLastHall = lastHall;
+    lastHall = hallState;
+
+    lLLastHall1 = lLastHall1;
+    lLastHall1 = lastHall1;
+    lastHall1 = hallState1;
+
+    
+    new_endtime = millis();   
   }
+  Serial.println("Counter"); 
+  Serial.println(hallCounter);
+  Serial.println(hallCounter1);  
 }
 
 void temp_hum() {
@@ -367,13 +406,13 @@ void temp_hum() {
   //Serial.println("Datos Ambiente");
   //Serial.println(String(h) + " - " + String(temp));
 }
-void dir(){
+uint8_t dir(){
 
   //Dependiendo del valor analogo obtenido de la señal del sensor infrarrojo se establece la direccion
     WV = analogRead(A3);
     //Serial.println("DIR ->");
     //Serial.println(WV);
-
+    uint8_t direccion;
     if (WV > 145 && WV < 165){
       direccion = 1;
     }
@@ -402,6 +441,7 @@ void dir(){
       direccion = 9;
     }
     //Serial.println(direccion);
+    return direccion;
 }
 void Going_To_Sleep() {
     Serial.println(F("GOINGTOSLEEP"));
