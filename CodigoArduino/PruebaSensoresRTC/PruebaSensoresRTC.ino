@@ -22,14 +22,14 @@ int lLLastHall = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,
 int hallCounter1 = 0;   //Contador tic tocs ´pluviografo
 int hallState1 = 0;      //Estado actual del sensor efecto hall pluviografo (HIGH,LOW)
 
-int lastHall1 = 0;    //Estado previo del sensor efecto hall pluviografo (HIGH,LOW)
-int lLastHall1 = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
-int lLLastHall1 = 0;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+bool lastHall1 = HIGH;    //Estado previo del sensor efecto hall pluviografo (HIGH,LOW)
+bool lLastHall1 = HIGH;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
+bool lLLastHall1 = HIGH;     //Estado previo del sensor efecto hall anemometro (HIGH,LOW)
 
 float starttime;
 float new_endtime = 0;
 
-int tiempo_hall = 30000;
+int tiempo_hall = 15000;
 
 int direccion = 0;
 int WV = 0;
@@ -64,22 +64,26 @@ void loop() {
   delay(500);
   int contDifDir = 0;
   boolean out = true;
-  while(out and contDifDir<3){
+//  while(out and contDifDir<3){
     int dir1 = dir();
     delay(1000);
     int dir2 = dir();
     delay(1000);
-    if(dir1 == dir2){
-      dirF = dir1;
-      out = false;;  
-    }else{
-      contDifDir++;
-      dirF = dir1;
-    }
-  }
+    int dir3 = dir();
+    delay(1000);
+//    int dir2 = dir();
+//    delay(1000);
+//    if(dir1 == dir2){
+//      dirF = dir1;
+//      out = false;;  
+//    }else{
+//      contDifDir++;
+//      dirF = dir1;
+//    }
+//  }
     
 
-  //hall();
+  hall();
   delay(1000);
   
   time_t t = RTC.get();
@@ -117,10 +121,26 @@ void hall() {
   while ((new_endtime - starttime) < tiempo_hall) { //Realizar este loop durante 45 segundos
     hallState = digitalRead(hall_an); //Estado hall anemometro
     hallState1 = digitalRead(hall_pluv1); //Estado hall pluviografo 1
+//    Serial.println("----------------------");
 //    if (hallState == HIGH) {
-//      Serial.println("HIGH");
+//      Serial.println(F("HIGH"));
 //    }else{
-//      Serial.println("LOW");
+//      Serial.println(F("LOW"));
+//    }
+//    if (lastHall1 == HIGH) {
+//      Serial.println(F("HIGH"));
+//    }else{
+//      Serial.println(F("LOW"));
+//    }
+//    if (lLastHall == HIGH) {
+//      Serial.println(F("HIGH"));
+//    }else{  
+//      Serial.println(F("LOW"));
+//    }
+//    if (lLLastHall == HIGH) {
+//      Serial.println(F("HIGH"));
+//    }else{
+//      Serial.println(F("LOW"));
 //    }
     //Si hay un cambio en el estado HIGH ->LOW o LOW->HIGH en la señal de salida de los efecto hall
     //se aumenta en 1 el numero de tic tocs
@@ -128,16 +148,17 @@ void hall() {
       if (hallState == HIGH and lastHall == HIGH and lLastHall == HIGH) {
         hallCounter++;
         Serial.println(hallCounter);
-        delay(500);
+        //delay(500);
       }
-      delay(10);
+      delay(50);
     }
     if (lLLastHall1 != lLastHall1) {
       if (hallState1 == HIGH and lastHall1 == HIGH and lLastHall1 == HIGH) {
         hallCounter1++;
         Serial.println(hallCounter1);
+        //delay(500);
       }
-      delay(10);
+      delay(50);
     }
     
     lLLastHall = lLastHall;

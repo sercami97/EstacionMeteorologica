@@ -10,7 +10,8 @@
 #define SIM800_RST_PIN 10
 
 const char APN[] = "internet.comcel.com.co";
-const String URL = "http://eco.agromakers.org/api/r_v?id=2020080427&tramo=";
+const char USR[] = "comcel";
+const String URL = "https://eco.agromakers.org/api/r_v?id=2020080427&tramo=";
 
 SIM800L* sim800l;
 
@@ -149,7 +150,7 @@ void setup() {
   inicializarSM(); //Inicializar Sleep Mode
 
   delay(5000);
-  
+  tomaDatos();
   updateVolt();
   if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
     Serial.println(F("LOW BATTERY UNABLE TO SEND SIM"));
@@ -330,11 +331,7 @@ void tomaDatos() {
  
   //Guardar datos en un String
   updateVolt();
-  //Serial.println("Voltage Reading");
-  //Serial.println(String(int(vol_panel)) + " - " + String(int(vol_bat)));
-  
-  //finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(int(temp)) + "," + String(int(h)) + "," + String(hallCounter) + "," + String(direccion) + "," + String(hallCounter1) +  ";";
-  
+
   finalString.reserve(40); //Se vuelve a disponer 290bytes de memoria para el nuevo mensaje
   finalString = String(day(tiempo))+ "," + String(month(tiempo))+ "," + String(hour(tiempo))+ "," + String(minute(tiempo)) + "," + String(temp) + "," + String(h) + "," + String(hallCounter) + "," + String(dirF) + "," + String(hallCounter1) + "," + String(vol_panel) + "," + String(vol_bat)+";";
   
@@ -355,10 +352,10 @@ void hall() {
   hallCounter1 = 0;
   starttime = millis();
   new_endtime = millis();
-  Serial.println(F("Init Hall"));
+  //Serial.println(F("Init Hall"));
   
   while ((new_endtime - starttime) < 60000) { //Realizar este loop durante 45 segundos
-    Serial.println((new_endtime - starttime));
+//    Serial.println((new_endtime - starttime));
 //    Serial.println(F("Inside"));
     hallState = digitalRead(hall_an); //Estado hall anemometro
     hallState1 = digitalRead(hall_pluv1); //Estado hall pluviografo 1
@@ -395,9 +392,9 @@ void hall() {
     
     new_endtime = millis();   
   }
-  Serial.println("Counter"); 
-  Serial.println(hallCounter);
-  Serial.println(hallCounter1);  
+//  Serial.println("Counter"); 
+//  Serial.println(hallCounter);
+//  Serial.println(hallCounter1);  
 }
 
 void temp_hum() {
@@ -761,9 +758,9 @@ bool setupModule() {
 //  delay(1000);
 
   // Setup APN for GPRS configuration
-  bool success = sim800l->setupGPRS(APN);
+  bool success = sim800l->setupGPRS(APN,USR);
   while(!success) {
-    success = sim800l->setupGPRS(APN);
+    success = sim800l->setupGPRS(APN,USR);
     delay(5000);
   }
   //Serial.println(F("GPRS config OK"));
