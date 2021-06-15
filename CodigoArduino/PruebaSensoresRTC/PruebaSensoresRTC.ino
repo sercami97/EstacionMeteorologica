@@ -39,7 +39,7 @@ int WV = 0;
 float h;  //Variable de humedad relativa (0-100)
 float temp; //Variable temeperatura grados centigrados
 
-boolean date_done = false;
+boolean date_done = true;
 
 float vol_bat = 0;
 float vol_panel = 0;
@@ -47,13 +47,25 @@ float vol_panel = 0;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  
   dht.begin();//Inicializar el DHT
 
+  //pinMode(A3, INPUT);
+  pinMode(transistor_Pin, OUTPUT);
+
+  digitalWrite(transistor_Pin, LOW); //Habilitar nodo 5V de alimentacion sensores
+
+  temp_hum();
+  delay(500);
+  
   digitalWrite(transistor_Pin, HIGH); //Habilitar nodo 5V de alimentacion sensores
   delay(100);
 
-  date_done = true;
-  //initTime();
+
+  time_t tiempo = RTC.get();
+  Serial.println(F("Time Datos"));
+  Serial.println((String(hour(tiempo))+ "," + String(minute(tiempo))));
+  initTime();
 }
 
 void loop() {
@@ -64,23 +76,23 @@ void loop() {
   delay(500);
   int contDifDir = 0;
   boolean out = true;
-//  while(out and contDifDir<3){
+  while(true){
     int dir1 = dir();
     delay(1000);
     int dir2 = dir();
     delay(1000);
     int dir3 = dir();
     delay(1000);
-//    int dir2 = dir();
-//    delay(1000);
-//    if(dir1 == dir2){
-//      dirF = dir1;
-//      out = false;;  
-//    }else{
-//      contDifDir++;
-//      dirF = dir1;
-//    }
-//  }
+    int dir4 = dir();
+    delay(1000);
+    if(dir1 == dir2){
+      dirF = dir1;
+      out = false;;  
+    }else{
+      contDifDir++;
+      dirF = dir1;
+    }
+  }
     
 
   hall();
@@ -97,11 +109,11 @@ void initTime(){
   RTC.begin();
   if (date_done == false){
   tmElements_t tm;
-  tm.Hour = 20;
-  tm.Minute = 19;
+  tm.Hour = 14;
+  tm.Minute = 15;
   tm.Second = 00;
-  tm.Day = 24;
-  tm.Month = 03;
+  tm.Day = 14;
+  tm.Month = 06;
   tm.Year = 2021 - 1970;
   RTC.write(tm); 
 
@@ -148,7 +160,8 @@ void hall() {
       if (hallState == HIGH and lastHall == HIGH and lLastHall == HIGH) {
         hallCounter++;
         Serial.println(hallCounter);
-        //delay(500);
+        Serial.println("Anemometro");
+//delay(500);
       }
       delay(50);
     }
@@ -156,6 +169,7 @@ void hall() {
       if (hallState1 == HIGH and lastHall1 == HIGH and lLastHall1 == HIGH) {
         hallCounter1++;
         Serial.println(hallCounter1);
+        Serial.println("Pluviografo");
         //delay(500);
       }
       delay(50);
@@ -184,35 +198,149 @@ int dir(){
     WV = analogRead(A3);
     Serial.println("DIR ->");
     Serial.println(WV);
-
-    if (WV > 145 && WV < 169){
+//--------------ESTACION 5-------------
+    if (WV > 145 && WV < 165){
       direccion = 1;
     }
-    else if (WV >= 169 && WV < 175){
+    else if (WV >= 166 && WV < 180){
       direccion = 2;
     }
-    else if (WV >= 175 && WV < 195){
+    else if (WV >= 181 && WV < 200){
       direccion = 3;
     }
-    else if (WV >= 195 && WV < 225){
+    else if (WV >= 201 && WV < 220){
       direccion = 4;
     }
-    else if (WV >= 225 && WV < 260){
+    else if (WV >= 221 && WV < 246){
       direccion = 5;
     }  
-    else if (WV >= 260 && WV < 300){
+    else if (WV >= 246 && WV < 275){
       direccion = 6;
     }
-    else if (WV >= 300 && WV < 325){
+    else if (WV >= 276 && WV < 305){
       direccion = 7;
     }
-    else if (WV >= 325 && WV < 413){
+    else if (WV >= 305 && WV < 413){
       direccion = 8;
     }
     else{
       direccion = 9;
     }
-    
+//------------- ESTACION4 ---------------
+//    if (WV > 145 && WV < 180){
+//      direccion = 1;
+//    }
+//    else if (WV >= 181 && WV < 195){
+//      direccion = 2;
+//    }
+//    else if (WV >= 196 && WV < 210){
+//      direccion = 3;
+//    }
+//    else if (WV >= 211 && WV < 245){
+//      direccion = 4;
+//    }
+//    else if (WV >= 245 && WV < 275){
+//      direccion = 5;
+//    }  
+//    else if (WV >= 276 && WV < 305){
+//      direccion = 6;
+//    }
+//    else if (WV >= 306 && WV < 335){
+//      direccion = 7;
+//    }
+//    else if (WV >= 336 && WV < 413){
+//      direccion = 8;
+//    }
+//    else{
+//      direccion = 9;
+//    }
+
+//------------ ESTACION2 -----------
+//    if (WV > 145 && WV < 160){
+//      direccion = 1;
+//    }
+//    else if (WV >= 161 && WV < 180){
+//      direccion = 2;
+//    }
+//    else if (WV >= 181 && WV < 200){
+//      direccion = 3;
+//    }
+//    else if (WV >= 201 && WV < 215){
+//      direccion = 4;
+//    }
+//    else if (WV >= 216 && WV < 235){
+//      direccion = 5;
+//    }  
+//    else if (WV >= 236 && WV < 249){
+//      direccion = 6;
+//    }
+//    else if (WV >= 250 && WV < 265){
+//      direccion = 7;
+//    }
+//    else if (WV >= 265 && WV < 413){
+//      direccion = 8;
+//    }
+//    else{
+//      direccion = 9;
+//    }
+
+//-------------- ESTACION3 ------------
+//if (WV > 145 && WV < 180){
+//      direccion = 1;
+//    }
+//    else if (WV >= 181 && WV < 205){
+//      direccion = 2;
+//    }
+//    else if (WV >= 206 && WV < 225){
+//      direccion = 3;
+//    }
+//    else if (WV >= 226 && WV < 245){
+//      direccion = 4;
+//    }
+//    else if (WV >= 246 && WV < 265){
+//      direccion = 5;
+//    }  
+//    else if (WV >= 266 && WV < 290){
+//      direccion = 6;
+//    }
+//    else if (WV >= 291 && WV < 315){
+//      direccion = 7;
+//    }
+//    else if (WV >= 316 && WV < 413){
+//      direccion = 8;
+//    }
+//    else{
+//      direccion = 9;
+//    }
+
+// ------------------- ESTACION1 ------------
+//    if (WV > 130 && WV < 155){
+//      direccion = 1;
+//    }
+//    else if (WV >= 156 && WV < 175){
+//      direccion = 2;
+//    }
+//    else if (WV >= 176 && WV < 190){
+//      direccion = 3;
+//    }
+//    else if (WV >= 191 && WV < 220){
+//      direccion = 4;
+//    }
+//    else if (WV >= 221 && WV < 240){
+//      direccion = 5;
+//    }  
+//    else if (WV >= 241 && WV < 255){
+//      direccion = 6;
+//    }
+//    else if (WV >= 256 && WV < 279){
+//      direccion = 7;
+//    }
+//    else if (WV >= 280 && WV < 350 ){
+//      direccion = 8;
+//    }
+//    else{
+//      direccion = 9;
+//    }
     Serial.println(direccion);
     return direccion;
 }

@@ -47,7 +47,7 @@ int len;
 #define transistor_Pin 9   //Pin del transistor
 #define interruptPin 2 //Pin de interrupcion para despertar el arduino
 
-const uint8_t time_interval = 30; //Intervalo de tiempo para la toma de datos
+const uint8_t time_interval = 15; //Intervalo de tiempo para la toma de datos
 const uint8_t num_ciclos = 5; //Definir numero de tomas previas al envío (tomar 6 como valor máximo para evitar problemas de inestabilidad)
 
 uint8_t ciclo = 0; 
@@ -410,33 +410,35 @@ uint8_t dir(){
     //Serial.println("DIR ->");
     //Serial.println(WV);
     uint8_t direccion;
+
     if (WV > 145 && WV < 165){
       direccion = 1;
     }
-    else if (WV >= 165 && WV < 175){
+    else if (WV >= 166 && WV < 180){
       direccion = 2;
     }
-    else if (WV >= 175 && WV < 195){
+    else if (WV >= 181 && WV < 200){
       direccion = 3;
     }
-    else if (WV >= 195 && WV < 225){
+    else if (WV >= 201 && WV < 220){
       direccion = 4;
     }
-    else if (WV >= 225 && WV < 260){
+    else if (WV >= 221 && WV < 246){
       direccion = 5;
     }  
-    else if (WV >= 260 && WV < 300){
+    else if (WV >= 246 && WV < 275){
       direccion = 6;
     }
-    else if (WV >= 300 && WV < 325){
+    else if (WV >= 276 && WV < 305){
       direccion = 7;
     }
-    else if (WV >= 325 && WV < 413){
+    else if (WV >= 305 && WV < 413){
       direccion = 8;
     }
     else{
       direccion = 9;
     }
+
     //Serial.println(direccion);
     return direccion;
 }
@@ -646,10 +648,11 @@ bool sendGet() {
     while(enviado==false and contHttpError < 3){
       // Do HTTP GET communication with 10s for the timeout (read)
       uint16_t rc = sim800l->doGet(65000);
-       if(rc == 200) {
+       if(rc == 200 or rc == 409) {
         // Success, output the data received on the serial
-        //Serial.println(F("HTTP GET successful"));
+        Serial.println(F("HTTP GET successful"));
         enviado = true;
+        break;
       } else {
         // Failed...
         Serial.print(F("HTTP GET error "));
@@ -758,9 +761,9 @@ bool setupModule() {
 //  delay(1000);
 
   // Setup APN for GPRS configuration
-  bool success = sim800l->setupGPRS(APN,USR);
+  bool success = sim800l->setupGPRS(APN);
   while(!success) {
-    success = sim800l->setupGPRS(APN,USR);
+    success = sim800l->setupGPRS(APN);
     delay(5000);
   }
   //Serial.println(F("GPRS config OK"));
