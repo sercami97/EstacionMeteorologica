@@ -12,6 +12,7 @@
 const char APN[] = "internet.comcel.com.co";
 const char USR[] = "comcel";
 const String URL = "https://eco.agromakers.org/api/r_v?id=2020080427&tramo=";
+const String URL2 = "https://eco.agromakers.org/api/r_v?id=2020080427&tramo=";
 
 SIM800L* sim800l;
 
@@ -150,6 +151,7 @@ void setup() {
   inicializarSM(); //Inicializar Sleep Mode
 
   delay(5000);
+  
   tomaDatos();
   updateVolt();
   if(vol_bat <= MIN_VOLT_BAT and vol_panel <= MIN_VOLT_PAN){
@@ -162,7 +164,7 @@ void setup() {
     tomaDatos();
     eliminarUltimoDigitoURL();
     
-    if(sendGet()){
+    if(sendGet(msg)){
       state = DATOS;
       remove_msg();
     }else{
@@ -172,6 +174,7 @@ void setup() {
   
 
 }
+
 void loop() {
 
   switch (state) {
@@ -198,7 +201,7 @@ void loop() {
       state = DORMIR;
       break;
     }
-    if(sendGet()==false){
+    if(sendGet(msg)==false){
       Serial.println(F("ERROR ENVIO"));
       state = RESET_SIM;
       break;
@@ -548,7 +551,7 @@ void eliminarUltimoDigitoURL(){
   //Serial.println(msg);
   delay(2000);
 }
-bool sendGet() {
+bool sendGet(String msg_param) {
     // Setup module for GPRS communication
   bool enviado = false; 
   uint8_t contfail = 0;
@@ -630,7 +633,7 @@ bool sendGet() {
       Serial.println(F("HTTP FAIL !"));
     }
     Serial.println(F("URL HTTP"));
-    Serial.println(msg);
+    Serial.println(msg_param);
     connected = false;
     for(uint8_t i = 0; i < 5 && !connected; i++) {
       delay(5000);

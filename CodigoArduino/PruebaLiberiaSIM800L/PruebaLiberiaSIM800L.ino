@@ -32,14 +32,15 @@
 
 #define SIM800_RX_PIN 5
 #define SIM800_TX_PIN 4
-#define SIM800_RST_PIN 10
+#define SIM800_RST_PIN 8
 
-const char APN[] = "internet.comcel.com.co";
+const char APN[] = "hologram";
 const char URL[] = "https://eco.agromakers.org/api/r_v?id=2021041229&tramo=1,1,1,1,1,1,1,1,1,1,1;2,2,2,2,2,2,2,2,2,2,2";
 
 SIM800L* sim800l;
 
 const uint8_t LIMIT_CONT = 35;
+#define transistor_sim 7   //Pin del transistor
 
 
 void setup() {  
@@ -47,16 +48,24 @@ void setup() {
   Serial.begin(9600);
   while(!Serial);
 
-  // Initialize a SoftwareSerial
-  SoftwareSerial* serial = new SoftwareSerial(SIM800_RX_PIN, SIM800_TX_PIN);
-  serial->begin(9600);
-  delay(1000);
-   
+  pinMode(transistor_sim, OUTPUT);
+  delay(100);
+  digitalWrite(transistor_sim, HIGH);
+  delay(100);
+
+//  // Initialize a SoftwareSerial
+//  SoftwareSerial* serial = new SoftwareSerial(SIM800_RX_PIN, SIM800_TX_PIN);
+//  serial->begin(9600);
+//  delay(1000);
+//   
   // Initialize SIM800L driver with an internal buffer of 200 bytes and a reception buffer of 512 bytes, debug disabled
   //sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 256, 256);
 
-  // Equivalent line with the debug enabled on the Serial
-  sim800l = new SIM800L((Stream *)serial, SIM800_RST_PIN, 256, 256, (Stream *)&Serial);
+//  // Equivalent line with the debug enabled on the Serial
+//  sim800l = new SIM800L((Stream *)&Serial, SIM800_RST_PIN, 256, 256, (Stream *)&Serial);
+
+    // Equivalent line with the debug enabled on the Serial
+  sim800l = new SIM800L((Stream *)&Serial, SIM800_RST_PIN, 256, 256);
 
   delay(10000);
 
